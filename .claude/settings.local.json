@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Administrator\\\\Documents\\\\lost-and-found-web-application\" -Recurse -Name)",
+      "Bash(Select-String -Pattern \"\\\\.\\(html|js|json|css\\)$\")",
+      "Bash(Select-Object -First 100)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\Administrator\\\\Documents\\\\lost-and-found-web-application\" -Recurse -File | Where-Object { $_.Extension -in '.html','.js','.json','.css' } | Select-Object FullName | Format-Table -AutoSize)",
+      "Bash(Get-Content \"C:\\\\Users\\\\Administrator\\\\Documents\\\\lost-and-found-web-application\\\\js\\\\app.js\" -TotalCount 160)",
+      "Bash(Select-String -Pattern \"function bootstrapData\" -Context 0,50)",
+      "Bash(git init *)",
+      "Bash(git remote *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
+    ]
+  }
+}
