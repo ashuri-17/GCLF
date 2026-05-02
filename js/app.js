@@ -708,8 +708,43 @@ async function saveAllDataToFirestore() {
 }
 
 function setupRealTimeListeners() {
-  // Disabled: Firestore real-time sync temporarily off
-  return;
+  // Unsubscribe existing listeners first
+  for (var i = 0; i < unsubscribers.length; i++) {
+    if (typeof unsubscribers[i] === "function") unsubscribers[i]();
+  }
+  unsubscribers = [];
+
+  // Listen to found items
+  var unsub1 = listenToCollection("foundItems", function(data) {
+    itemsData = data;
+    if (typeof renderItems === "function") renderItems();
+    if (typeof updateStudentStats === "function") updateStudentStats();
+    if (typeof updateAdminStats === "function") updateAdminStats();
+  });
+  unsubscribers.push(unsub1);
+
+  // Listen to claims
+  var unsub2 = listenToCollection("claims", function(data) {
+    allClaims = data;
+    rebuildMyClaimsByEmail();
+    if (typeof renderAdminClaims === "function") renderAdminClaims();
+  });
+  unsubscribers.push(unsub2);
+
+  // Listen to lost reports
+  var unsub3 = listenToCollection("lostReports", function(data) {
+    lostReports = data;
+    if (typeof renderLostReportsList === "function") renderLostReportsList();
+    if (typeof renderLostMatches === "function") renderLostMatches();
+  });
+  unsubscribers.push(unsub3);
+
+  // Listen to pending found reports
+  var unsub4 = listenToCollection("pendingFoundReports", function(data) {
+    pendingFoundReports = data;
+    if (typeof renderAdminFoundReportsList === "function") renderAdminFoundReportsList();
+  });
+  unsubscribers.push(unsub4);
 }
 
 async function doLogin() {
@@ -769,6 +804,12 @@ async function launchStudentApp() {
   // Always refresh from persisted storage so newly approved
   // reports/items are visible to any user who logs in next.
   await bootstrapData();
+  // Load latest data from Firestore (sync from other users)
+  if (firestoreDb) {
+    try {
+      await loadAllDataFromFirestore();
+    } catch(e) { console.warn("Firestore load failed:", e); }
+  }
   setupRealTimeListeners();
   const p = getCurrentProfile();
   document.getElementById("sbStudentName").textContent = p?.fullName || currentUser.name;
@@ -795,6 +836,12 @@ async function launchAdminApp() {
     return;
   }
   await bootstrapData();
+  // Load latest data from Firestore (sync from other users)
+  if (firestoreDb) {
+    try {
+      await loadAllDataFromFirestore();
+    } catch(e) { console.warn("Firestore load failed:", e); }
+  }
   setupRealTimeListeners();
   document.getElementById("adminApp").style.display = "block";
   startDateTime("adminTopbarDate");
