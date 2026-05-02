@@ -790,14 +790,6 @@ async function launchStudentApp() {
   // Always refresh from persisted storage so newly approved
   // reports/items are visible to any user who logs in next.
   await bootstrapData();
-  // Sync from Firestore in background (get latest data from other users)
-  if (firestoreDb) {
-    loadAllDataFromFirestore().then(() => {
-      renderItems();
-      renderDashboardMixed();
-      updateStudentStats();
-    }).catch(e => console.warn("Firestore sync failed:", e));
-  }
   setupRealTimeListeners();
   const p = getCurrentProfile();
   document.getElementById("sbStudentName").textContent = p?.fullName || currentUser.name;
@@ -824,16 +816,6 @@ async function launchAdminApp() {
     return;
   }
   await bootstrapData();
-  // Sync from Firestore in background (get latest data from other users)
-  if (firestoreDb) {
-    loadAllDataFromFirestore().then(() => {
-      renderAdminItems();
-      renderAdminClaims();
-      renderAdminReports();
-      renderAdminOverviewLists();
-      updateAdminStats();
-    }).catch(e => console.warn("Firestore sync failed:", e));
-  }
   setupRealTimeListeners();
   document.getElementById("adminApp").style.display = "block";
   startDateTime("adminTopbarDate");
@@ -1380,7 +1362,7 @@ async function submitClaim(id) {
   allClaims.push(claimEntry);
   myClaimsByEmail[currentUser.email] = [...myClaims];
   if (item && item.status === "Unclaimed") item.status = "Pending";
-  let persisted = savePersisted();
+  let persisted = await savePersisted();
   if (!persisted) {
     claimEntry.proofImage = null;
     claimEntry.proofImageMissing = true;
@@ -1563,7 +1545,7 @@ async function submitFoundItem(cid, isAdmin) {
     addNotification(`Found-item report submitted for "${reportPayload.name}".`, "info", currentUser?.email || null);
     showToast("Found-item report submitted. Waiting for admin approval.", "info");
   }
-  let persisted = savePersisted();
+  let persisted = await savePersisted();
   if (!persisted) {
     if (isAdmin && itemsData.length) {
       itemsData[0].image = null;
@@ -1684,7 +1666,7 @@ async function submitLostReport() {
     adminNote: ""
   };
   lostReports.unshift(entry);
-  let persisted = savePersisted();
+  let persisted = await savePersisted();
   if (!persisted) {
     lostReports[0].image = null;
     lostReports[0].imageStoredRemotely = false;
@@ -1991,7 +1973,7 @@ async function submitFoundYourItem(lostReportId) {
     submittedAt: new Date().toLocaleString(),
     rejectedReason: ""
   });
-  let persisted = savePersisted();
+  let persisted = await savePersisted();
   if (!persisted) {
     lostItemLeads[0].proofImage = null;
     lostItemLeads[0].proofStoredRemotely = false;
