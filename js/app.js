@@ -287,14 +287,21 @@ async function savePersisted() {
     // Always save to IndexedDB as local backup (fast, reliable)
     const data = JSON.parse(persistPayload());
     await setToIndexedDB(STORAGE_KEY, data);
-    // Also try to sync to Firestore in background (non-blocking)
-    if (firestoreDb) {
-      saveAllDataToFirestore().catch(e => console.warn("Firestore sync failed:", e));
-    }
     return true;
   } catch (e) {
-    console.warn("Failed to save:", e);
+    console.warn("Failed to save to IndexedDB:", e);
     return false;
+  }
+}
+
+// Call this manually when you want to sync to Firestore (not on every save)
+async function syncToFirestore() {
+  if (!firestoreDb) return;
+  try {
+    await saveAllDataToFirestore();
+    console.log("Synced to Firestore");
+  } catch(e) {
+    console.warn("Firestore sync failed:", e);
   }
 }
 
@@ -606,17 +613,29 @@ async function loadCollection(collectionName) {
 async function saveToFirestore(collectionName, item) {
   if (!firestoreDb) initFirebaseIfNeeded();
   var colName = String(collectionName);
-  var docId = item.id ? String(item.id) : firestoreDb.collection(colName).doc().id;
+  var docId = String(item.id || firestoreDb.collection(colName).doc().id);
   var docRef = firestoreDb.collection(colName).doc(docId);
   var dataToSave = {};
   for (var key in item) {
     if (key !== "id") dataToSave[key] = item[key];
   }
   dataToSave.id = docId;
-  dataToSave.createdAt = item.createdAt || firebase.firestore.FieldValue.serverTimestamp();
   dataToSave.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+  if (!item.createdAt) dataToSave.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+  else dataToSave.createdAt = item.createdAt;
   await docRef.set(dataToSave);
   return docId;
+}
+
+// Save a single item update to Firestore (not the whole collection)
+async function updateItemInFirestore(collectionName, item) {
+  if (!firestoreDb) return;
+  var docId = String(item.id);
+  var docRef = firestoreDb.collection(String(collectionName)).doc(docId);
+  await docRef.update({
+    status: item.status,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
 }
 
 async function deleteFromFirestore(collectionName, docId) {
@@ -821,12 +840,6 @@ async function launchStudentApp() {
   // Always refresh from persisted storage so newly approved
   // reports/items are visible to any user who logs in next.
   await bootstrapData();
-  // Load latest data from Firestore (sync from other users)
-  if (firestoreDb) {
-    try {
-      await loadAllDataFromFirestore();
-    } catch(e) { console.warn("Firestore load failed:", e); }
-  }
   setupRealTimeListeners();
   const p = getCurrentProfile();
   document.getElementById("sbStudentName").textContent = p?.fullName || currentUser.name;
@@ -853,12 +866,6 @@ async function launchAdminApp() {
     return;
   }
   await bootstrapData();
-  // Load latest data from Firestore (sync from other users)
-  if (firestoreDb) {
-    try {
-      await loadAllDataFromFirestore();
-    } catch(e) { console.warn("Firestore load failed:", e); }
-  }
   setupRealTimeListeners();
   document.getElementById("adminApp").style.display = "block";
   startDateTime("adminTopbarDate");
