@@ -605,14 +605,17 @@ async function loadCollection(collectionName) {
 
 async function saveToFirestore(collectionName, item) {
   if (!firestoreDb) initFirebaseIfNeeded();
-  const docId = item.id || firestoreDb.collection(collectionName).doc().id;
-  const docRef = firestoreDb.collection(collectionName).doc(docId);
-  await docRef.set({
-    ...item,
-    id: docId,
-    createdAt: item.createdAt || firebase.firestore.FieldValue.serverTimestamp(),
-    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-  });
+  var colName = String(collectionName);
+  var docId = item.id ? String(item.id) : firestoreDb.collection(colName).doc().id;
+  var docRef = firestoreDb.collection(colName).doc(docId);
+  var dataToSave = {};
+  for (var key in item) {
+    if (key !== "id") dataToSave[key] = item[key];
+  }
+  dataToSave.id = docId;
+  dataToSave.createdAt = item.createdAt || firebase.firestore.FieldValue.serverTimestamp();
+  dataToSave.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+  await docRef.set(dataToSave);
   return docId;
 }
 
@@ -675,20 +678,34 @@ async function loadAllDataFromFirestore() {
 async function saveAllDataToFirestore() {
   try {
     // Save collections individually (not batch delete+add)
-    const saveOps = [];
-    const collections = {
-      foundItems: itemsData,
-      claims: allClaims,
-      lostReports: lostReports,
-      pendingFoundReports: pendingFoundReports,
-      lostItemLeads: lostItemLeads,
-      auditLogs: auditLogs,
-      notifications: notifications
-    };
-    for (const [collectionName, dataArray] of Object.entries(collections)) {
-      for (const item of dataArray) {
-        saveOps.push(saveToFirestore(collectionName, item));
-      }
+    var saveOps = [];
+    // foundItems
+    for (var i = 0; i < itemsData.length; i++) {
+      saveOps.push(saveToFirestore("foundItems", itemsData[i]));
+    }
+    // claims
+    for (var j = 0; j < allClaims.length; j++) {
+      saveOps.push(saveToFirestore("claims", allClaims[j]));
+    }
+    // lostReports
+    for (var k = 0; k < lostReports.length; k++) {
+      saveOps.push(saveToFirestore("lostReports", lostReports[k]));
+    }
+    // pendingFoundReports
+    for (var l = 0; l < pendingFoundReports.length; l++) {
+      saveOps.push(saveToFirestore("pendingFoundReports", pendingFoundReports[l]));
+    }
+    // lostItemLeads
+    for (var m = 0; m < lostItemLeads.length; m++) {
+      saveOps.push(saveToFirestore("lostItemLeads", lostItemLeads[m]));
+    }
+    // auditLogs
+    for (var n = 0; n < auditLogs.length; n++) {
+      saveOps.push(saveToFirestore("auditLogs", auditLogs[n]));
+    }
+    // notifications
+    for (var p = 0; p < notifications.length; p++) {
+      saveOps.push(saveToFirestore("notifications", notifications[p]));
     }
     await Promise.all(saveOps);
     // Save student profiles
