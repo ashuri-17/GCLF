@@ -744,9 +744,35 @@ async function saveAllDataToFirestore() {
 }
 
 function setupRealTimeListeners() {
-  // DISABLED: Firestore listeners cause data overwrite issues
-  // Will re-enable once Firestore data is cleaned up
-  return;
+  // Unsubscribe existing listeners first
+  for (var i = 0; i < unsubscribers.length; i++) {
+    if (typeof unsubscribers[i] === "function") unsubscribers[i]();
+  }
+  unsubscribers = [];
+
+  // Listen to found items
+  var unsub1 = listenToCollection("foundItems", function(data) {
+    itemsData = data;
+    if (typeof renderItems === "function") renderItems();
+    if (typeof updateStudentStats === "function") updateStudentStats();
+    if (typeof updateAdminStats === "function") updateAdminStats();
+  });
+  unsubscribers.push(unsub1);
+
+  // Listen to pending found reports
+  var unsub2 = listenToCollection("pendingFoundReports", function(data) {
+    pendingFoundReports = data;
+    if (typeof renderAdminFoundReportsList === "function") renderAdminFoundReportsList();
+  });
+  unsubscribers.push(unsub2);
+
+  // Listen to claims
+  var unsub3 = listenToCollection("claims", function(data) {
+    allClaims = data;
+    rebuildMyClaimsByEmail();
+    if (typeof renderAdminClaims === "function") renderAdminClaims();
+  });
+  unsubscribers.push(unsub3);
 }
 
 async function doLogin() {
