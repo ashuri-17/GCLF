@@ -287,21 +287,14 @@ async function savePersisted() {
     // Always save to IndexedDB as local backup (fast, reliable)
     const data = JSON.parse(persistPayload());
     await setToIndexedDB(STORAGE_KEY, data);
+    // Also try to sync to Firestore in background (non-blocking)
+    if (firestoreDb) {
+      saveAllDataToFirestore().catch(e => console.warn("Firestore sync failed:", e));
+    }
     return true;
   } catch (e) {
-    console.warn("Failed to save to IndexedDB:", e);
+    console.warn("Failed to save:", e);
     return false;
-  }
-}
-
-// Call this manually when you want to sync to Firestore (not on every save)
-async function syncToFirestore() {
-  if (!firestoreDb) return;
-  try {
-    await saveAllDataToFirestore();
-    console.log("Synced to Firestore");
-  } catch(e) {
-    console.warn("Firestore sync failed:", e);
   }
 }
 
@@ -612,30 +605,15 @@ async function loadCollection(collectionName) {
 
 async function saveToFirestore(collectionName, item) {
   if (!firestoreDb) initFirebaseIfNeeded();
-  var colName = String(collectionName);
-  var docId = String(item.id || firestoreDb.collection(colName).doc().id);
-  var docRef = firestoreDb.collection(colName).doc(docId);
-  var dataToSave = {};
-  for (var key in item) {
-    if (key !== "id") dataToSave[key] = item[key];
-  }
-  dataToSave.id = docId;
-  dataToSave.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
-  if (!item.createdAt) dataToSave.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-  else dataToSave.createdAt = item.createdAt;
-  await docRef.set(dataToSave);
-  return docId;
-}
-
-// Save a single item update to Firestore (not the whole collection)
-async function updateItemInFirestore(collectionName, item) {
-  if (!firestoreDb) return;
-  var docId = String(item.id);
-  var docRef = firestoreDb.collection(String(collectionName)).doc(docId);
-  await docRef.update({
-    status: item.status,
+  const docId = item.id || firestoreDb.collection(collectionName).doc().id;
+  const docRef = firestoreDb.collection(collectionName).doc(docId);
+  await docRef.set({
+    ...item,
+    id: docId,
+    createdAt: item.createdAt || firebase.firestore.FieldValue.serverTimestamp(),
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   });
+  return docId;
 }
 
 async function deleteFromFirestore(collectionName, docId) {
@@ -697,34 +675,20 @@ async function loadAllDataFromFirestore() {
 async function saveAllDataToFirestore() {
   try {
     // Save collections individually (not batch delete+add)
-    var saveOps = [];
-    // foundItems
-    for (var i = 0; i < itemsData.length; i++) {
-      saveOps.push(saveToFirestore("foundItems", itemsData[i]);
-    }
-    // claims
-    for (var j = 0; j < allClaims.length; j++) {
-      saveOps.push(saveToFirestore("claims", allClaims[j]);
-    }
-    // lostReports
-    for (var k = 0; k < lostReports.length; k++) {
-      saveOps.push(saveToFirestore("lostReports", lostReports[k]);
-    }
-    // pendingFoundReports
-    for (var l = 0; l < pendingFoundReports.length; l++) {
-      saveOps.push(saveToFirestore("pendingFoundReports", pendingFoundReports[l]);
-    }
-    // lostItemLeads
-    for (var m = 0; m < lostItemLeads.length; m++) {
-      saveOps.push(saveToFirestore("lostItemLeads", lostItemLeads[m]);
-    }
-    // auditLogs
-    for (var n = 0; n < auditLogs.length; n++) {
-      saveOps.push(saveToFirestore("auditLogs", auditLogs[n]);
-    }
-    // notifications
-    for (var p = 0; p < notifications.length; p++) {
-      saveOps.push(saveToFirestore("notifications", notifications[p]);
+    const saveOps = [];
+    const collections = {
+      foundItems: itemsData,
+      claims: allClaims,
+      lostReports: lostReports,
+      pendingFoundReports: pendingFoundReports,
+      lostItemLeads: lostItemLeads,
+      auditLogs: auditLogs,
+      notifications: notifications
+    };
+    for (const [collectionName, dataArray] of Object.entries(collections)) {
+      for (const item of dataArray) {
+        saveOps.push(saveToFirestore(collectionName, item));
+      }
     }
     await Promise.all(saveOps);
     // Save student profiles
@@ -744,35 +708,8 @@ async function saveAllDataToFirestore() {
 }
 
 function setupRealTimeListeners() {
-  // Unsubscribe existing listeners first
-  for (var i = 0; i < unsubscribers.length; i++) {
-    if (typeof unsubscribers[i] === "function") unsubscribers[i]();
-  }
-  unsubscribers = [];
-
-  // Listen to found items
-  var unsub1 = listenToCollection("foundItems", function(data) {
-    itemsData = data;
-    if (typeof renderItems === "function") renderItems();
-    if (typeof updateStudentStats === "function") updateStudentStats();
-    if (typeof updateAdminStats === "function") updateAdminStats();
-  });
-  unsubscribers.push(unsub1);
-
-  // Listen to pending found reports
-  var unsub2 = listenToCollection("pendingFoundReports", function(data) {
-    pendingFoundReports = data;
-    if (typeof renderAdminFoundReportsList === "function") renderAdminFoundReportsList();
-  });
-  unsubscribers.push(unsub2);
-
-  // Listen to claims
-  var unsub3 = listenToCollection("claims", function(data) {
-    allClaims = data;
-    rebuildMyClaimsByEmail();
-    if (typeof renderAdminClaims === "function") renderAdminClaims();
-  });
-  unsubscribers.push(unsub3);
+  // Disabled: Firestore real-time sync temporarily off
+  return;
 }
 
 async function doLogin() {
@@ -832,12 +769,6 @@ async function launchStudentApp() {
   // Always refresh from persisted storage so newly approved
   // reports/items are visible to any user who logs in next.
   await bootstrapData();
-  // Load latest data from Firestore (sync from other users)
-  if (firestoreDb) {
-    try {
-      await loadAllDataFromFirestore();
-    } catch(e) { console.warn("Firestore load failed:", e); }
-  }
   setupRealTimeListeners();
   const p = getCurrentProfile();
   document.getElementById("sbStudentName").textContent = p?.fullName || currentUser.name;
@@ -864,12 +795,6 @@ async function launchAdminApp() {
     return;
   }
   await bootstrapData();
-  // Load latest data from Firestore (sync from other users)
-  if (firestoreDb) {
-    try {
-      await loadAllDataFromFirestore();
-    } catch(e) { console.warn("Firestore load failed:", e); }
-  }
   setupRealTimeListeners();
   document.getElementById("adminApp").style.display = "block";
   startDateTime("adminTopbarDate");
@@ -1593,15 +1518,11 @@ async function submitFoundItem(cid, isAdmin) {
     itemsData.unshift(newItem);
     addAuditLog("item.logged.admin", { itemId: newItem.id, name: newItem.name });
     showToast("Item reported and added to the system successfully!", "success");
-    // Save to Firestore for cross-browser sync
-    if (firestoreDb) saveToFirestore("foundItems", newItem).catch(e => console.warn("Firestore save failed:", e));
   } else {
     pendingFoundReports.unshift(reportPayload);
     addAuditLog("found.report.submitted", { reportId: reportPayload.id, name: reportPayload.name });
     addNotification(`Found-item report submitted for "${reportPayload.name}".`, "info", currentUser?.email || null);
     showToast("Found-item report submitted. Waiting for admin approval.", "info");
-    // Save to Firestore for cross-browser sync
-    if (firestoreDb) saveToFirestore("pendingFoundReports", reportPayload).catch(e => console.warn("Firestore save failed:", e));
   }
   let persisted = await savePersisted();
   if (!persisted) {
@@ -2317,11 +2238,6 @@ function approveFoundReport(id) {
   delete newItem.reportType;
   itemsData.unshift(newItem);
   savePersisted();
-  // Sync to Firestore for cross-browser sync
-  if (firestoreDb) {
-    saveToFirestore("foundItems", newItem)).catch(e => console.warn("Firestore save failed:", e));
-    deleteFromFirestore("pendingFoundReports", r.id).catch(e => console.warn("Firestore delete failed:", e));
-  }
   renderAdminReports();
   renderItems();
   renderRecentGrid();
@@ -2340,10 +2256,6 @@ function rejectFoundReport(id) {
   const target = pendingFoundReports.find((r) => Number(r.id) === Number(id));
   pendingFoundReports = pendingFoundReports.filter((r) => Number(r.id) !== Number(id));
   savePersisted();
-  // Sync to Firestore for cross-browser sync
-  if (firestoreDb && target) {
-    deleteFromFirestore("pendingFoundReports", String(target.id)).catch(e => console.warn("Firestore delete failed:", e));
-  }
   renderAdminReports();
   addAuditLog("report.found.rejected", { reportId: id, name: target?.name || "" });
   if (target?.reporterEmail) addNotification(`Your found-item report "${target.name}" was rejected.`, "danger", target.reporterEmail);
