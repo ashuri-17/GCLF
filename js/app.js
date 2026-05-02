@@ -623,12 +623,20 @@ async function deleteFromFirestore(collectionName, docId) {
 
 function listenToCollection(collectionName, callback) {
   if (!firestoreDb) initFirebaseIfNeeded();
-  return firestoreDb.collection(collectionName).onSnapshot(snapshot => {
-    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    callback(data);
-  }, (error) => {
-    console.warn(`Firestore listener error on ${collectionName}:`, error);
-  });
+  return firestoreDb.collection(collectionName).onSnapshot(
+    function(snapshot) {
+      var data = [];
+      snapshot.docs.forEach(function(doc) {
+        var obj = doc.data();
+        obj.id = doc.id;
+        data.push(obj);
+      });
+      callback(data);
+    },
+    function(error) {
+      console.warn("Firestore listener error on " + collectionName + ":", error);
+    }
+  );
 }
 
 // ===================== FIRESTORE DATA SYNC =====================
@@ -700,37 +708,8 @@ async function saveAllDataToFirestore() {
 }
 
 function setupRealTimeListeners() {
-  // Unsubscribe existing listeners first
-  unsubscribers.forEach(unsub => unsub());
-  unsubscribers = [];
-
-  // Listen to found items
-  unsubscribers.push(listenToCollection("foundItems", (data) => {
-    itemsData = data;
-    if (typeof renderItems === "function") renderItems();
-    if (typeof updateStudentStats === "function") updateStudentStats();
-    if (typeof updateAdminStats === "function") updateAdminStats();
-  });
-
-  // Listen to claims
-  unsubscribers.push(listenToCollection("claims", (data) => {
-    allClaims = data;
-    rebuildMyClaimsByEmail();
-    if (typeof renderAdminClaims === "function") renderAdminClaims();
-  });
-
-  // Listen to lost reports
-  unsubscribers.push(listenToCollection("lostReports", (data) => {
-    lostReports = data;
-    if (typeof renderLostReportsList === "function") renderLostReportsList();
-    if (typeof renderLostMatches === "function") renderLostMatches();
-  });
-
-  // Listen to pending found reports
-  unsubscribers.push(listenToCollection("pendingFoundReports", (data) => {
-    pendingFoundReports = data;
-    if (typeof renderAdminFoundReportsList === "function") renderAdminFoundReportsList();
-  });
+  // Disabled: Firestore real-time sync temporarily off
+  return;
 }
 
 async function doLogin() {
