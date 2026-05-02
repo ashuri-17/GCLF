@@ -832,6 +832,12 @@ async function launchStudentApp() {
   // Always refresh from persisted storage so newly approved
   // reports/items are visible to any user who logs in next.
   await bootstrapData();
+  // Load latest data from Firestore (sync from other users)
+  if (firestoreDb) {
+    try {
+      await loadAllDataFromFirestore();
+    } catch(e) { console.warn("Firestore load failed:", e); }
+  }
   setupRealTimeListeners();
   const p = getCurrentProfile();
   document.getElementById("sbStudentName").textContent = p?.fullName || currentUser.name;
@@ -858,6 +864,12 @@ async function launchAdminApp() {
     return;
   }
   await bootstrapData();
+  // Load latest data from Firestore (sync from other users)
+  if (firestoreDb) {
+    try {
+      await loadAllDataFromFirestore();
+    } catch(e) { console.warn("Firestore load failed:", e); }
+  }
   setupRealTimeListeners();
   document.getElementById("adminApp").style.display = "block";
   startDateTime("adminTopbarDate");
