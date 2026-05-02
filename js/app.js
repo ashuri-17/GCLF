@@ -700,31 +700,31 @@ async function saveAllDataToFirestore() {
     var saveOps = [];
     // foundItems
     for (var i = 0; i < itemsData.length; i++) {
-      saveOps.push(saveToFirestore("foundItems", itemsData[i]));
+      saveOps.push(saveToFirestore("foundItems", itemsData[i]);
     }
     // claims
     for (var j = 0; j < allClaims.length; j++) {
-      saveOps.push(saveToFirestore("claims", allClaims[j]));
+      saveOps.push(saveToFirestore("claims", allClaims[j]);
     }
     // lostReports
     for (var k = 0; k < lostReports.length; k++) {
-      saveOps.push(saveToFirestore("lostReports", lostReports[k]));
+      saveOps.push(saveToFirestore("lostReports", lostReports[k]);
     }
     // pendingFoundReports
     for (var l = 0; l < pendingFoundReports.length; l++) {
-      saveOps.push(saveToFirestore("pendingFoundReports", pendingFoundReports[l]));
+      saveOps.push(saveToFirestore("pendingFoundReports", pendingFoundReports[l]);
     }
     // lostItemLeads
     for (var m = 0; m < lostItemLeads.length; m++) {
-      saveOps.push(saveToFirestore("lostItemLeads", lostItemLeads[m]));
+      saveOps.push(saveToFirestore("lostItemLeads", lostItemLeads[m]);
     }
     // auditLogs
     for (var n = 0; n < auditLogs.length; n++) {
-      saveOps.push(saveToFirestore("auditLogs", auditLogs[n]));
+      saveOps.push(saveToFirestore("auditLogs", auditLogs[n]);
     }
     // notifications
     for (var p = 0; p < notifications.length; p++) {
-      saveOps.push(saveToFirestore("notifications", notifications[p]));
+      saveOps.push(saveToFirestore("notifications", notifications[p]);
     }
     await Promise.all(saveOps);
     // Save student profiles
