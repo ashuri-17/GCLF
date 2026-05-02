@@ -1581,11 +1581,15 @@ async function submitFoundItem(cid, isAdmin) {
     itemsData.unshift(newItem);
     addAuditLog("item.logged.admin", { itemId: newItem.id, name: newItem.name });
     showToast("Item reported and added to the system successfully!", "success");
+    // Save to Firestore for cross-browser sync
+    if (firestoreDb) saveToFirestore("foundItems", newItem).catch(e => console.warn("Firestore save failed:", e));
   } else {
     pendingFoundReports.unshift(reportPayload);
     addAuditLog("found.report.submitted", { reportId: reportPayload.id, name: reportPayload.name });
     addNotification(`Found-item report submitted for "${reportPayload.name}".`, "info", currentUser?.email || null);
     showToast("Found-item report submitted. Waiting for admin approval.", "info");
+    // Save to Firestore for cross-browser sync
+    if (firestoreDb) saveToFirestore("pendingFoundReports", reportPayload).catch(e => console.warn("Firestore save failed:", e));
   }
   let persisted = await savePersisted();
   if (!persisted) {
@@ -2301,6 +2305,11 @@ function approveFoundReport(id) {
   delete newItem.reportType;
   itemsData.unshift(newItem);
   savePersisted();
+  // Sync to Firestore for cross-browser sync
+  if (firestoreDb) {
+    saveToFirestore("foundItems", newItem)).catch(e => console.warn("Firestore save failed:", e));
+    deleteFromFirestore("pendingFoundReports", r.id).catch(e => console.warn("Firestore delete failed:", e));
+  }
   renderAdminReports();
   renderItems();
   renderRecentGrid();
@@ -2319,6 +2328,10 @@ function rejectFoundReport(id) {
   const target = pendingFoundReports.find((r) => Number(r.id) === Number(id));
   pendingFoundReports = pendingFoundReports.filter((r) => Number(r.id) !== Number(id));
   savePersisted();
+  // Sync to Firestore for cross-browser sync
+  if (firestoreDb && target) {
+    deleteFromFirestore("pendingFoundReports", String(target.id)).catch(e => console.warn("Firestore delete failed:", e));
+  }
   renderAdminReports();
   addAuditLog("report.found.rejected", { reportId: id, name: target?.name || "" });
   if (target?.reporterEmail) addNotification(`Your found-item report "${target.name}" was rejected.`, "danger", target.reporterEmail);
