@@ -604,33 +604,17 @@ async function loadCollection(collectionName) {
 }
 
 async function saveToFirestore(collectionName, item) {
-  if (!firestoreDb) initFirebaseIfNeeded();
-  var docId = String(item.id || firestoreDb.collection(collectionName).doc().id);
-  var docRef = firestoreDb.collection(String(collectionName)).doc(docId);
-  var dataToSave = {};
-  for (var key in item) {
-    if (key !== "id") dataToSave[key] = item[key];
-  }
-  dataToSave.id = docId;
-  if (!item.createdAt) {
-    dataToSave.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-  } else {
-    dataToSave.createdAt = item.createdAt;
-  }
-  dataToSave.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
-  await docRef.set(dataToSave);
-  return docId;
+  // DISABLED: Firestore quota exceeded - re-enable after quota resets
+  console.warn('Firestore save disabled: quota exceeded');
+  return null;
 }
 
 async function updateItemInFirestore(collectionName, item) {
-  if (!firestoreDb) return;
-  var docId = String(item.id);
-  var docRef = firestoreDb.collection(String(collectionName)).doc(docId);
-  await docRef.update({
-    status: item.status,
-    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-  });
+  // DISABLED: Firestore quota exceeded - re-enable after quota resets
+  console.warn('Firestore update disabled: quota exceeded');
+  return;
 }
+
 
 async function deleteFromFirestore(collectionName, docId) {
   if (!firestoreDb) initFirebaseIfNeeded();
@@ -659,100 +643,18 @@ function listenToCollection(collectionName, callback) {
 let unsubscribers = []; // Store unsubscribe functions for listeners
 
 async function loadAllDataFromFirestore() {
-  try {
-    // Load data from Firestore
-    [itemsData, allClaims, lostReports, pendingFoundReports, lostItemLeads] = await Promise.all([
-      loadCollection("foundItems"),
-      loadCollection("claims"),
-      loadCollection("lostReports"),
-      loadCollection("pendingFoundReports"),
-      loadCollection("lostItemLeads")
-    ]);
-    // Load student profiles (stored as individual docs keyed by email)
-    const profilesSnapshot = await firestoreDb.collection("studentProfiles").get();
-    studentProfiles = {};
-    profilesSnapshot.docs.forEach(doc => {
-      studentProfiles[doc.id] = doc.data();
-    });
-    // Load audit logs and notifications
-    auditLogs = await loadCollection("auditLogs");
-    notifications = await loadCollection("notifications");
-    // Load system config
-    const configDoc = await firestoreDb.collection("system").doc("config").get();
-    if (configDoc.exists) systemConfig = configDoc.data();
-    rebuildMyClaimsByEmail();
-    return true;
-  } catch (e) {
-    console.error("Failed to load from Firestore:", e);
-    return false;
-  }
+  console.warn("Firestore load disabled: quota exceeded");
+  return false;
 }
 
 async function saveAllDataToFirestore() {
-  try {
-    // Save collections individually (not batch delete+add)
-    const saveOps = [];
-    const collections = {
-      foundItems: itemsData,
-      claims: allClaims,
-      lostReports: lostReports,
-      pendingFoundReports: pendingFoundReports,
-      lostItemLeads: lostItemLeads,
-      auditLogs: auditLogs,
-      notifications: notifications
-    };
-    for (const [collectionName, dataArray] of Object.entries(collections)) {
-      for (const item of dataArray) {
-        saveOps.push(saveToFirestore(collectionName, item));
-      }
-    }
-    await Promise.all(saveOps);
-    // Save student profiles
-    const profilesBatch = firestoreDb.batch();
-    Object.keys(studentProfiles).forEach(email => {
-      const docRef = firestoreDb.collection("studentProfiles").doc(email);
-      profilesBatch.set(docRef, studentProfiles[email]);
-    });
-    await profilesBatch.commit();
-    // Save system config
-    await firestoreDb.collection("system").doc("config").set(systemConfig);
-    return true;
-  } catch (e) {
-    console.error("Failed to save to Firestore:", e);
-    return false;
-  }
+  console.warn("Firestore save disabled: quota exceeded");
+  return false;
 }
 
 function setupRealTimeListeners() {
-  // Unsubscribe existing listeners first
-  for (var i = 0; i < unsubscribers.length; i++) {
-    if (typeof unsubscribers[i] === "function") unsubscribers[i]();
-  }
-  unsubscribers = [];
-
-  // Listen to found items
-  var unsub1 = listenToCollection("foundItems", function(data) {
-    itemsData = data;
-    if (typeof renderItems === "function") renderItems();
-    if (typeof updateStudentStats === "function") updateStudentStats();
-    if (typeof updateAdminStats === "function") updateAdminStats();
-  });
-  unsubscribers.push(unsub1);
-
-  // Listen to pending found reports
-  var unsub2 = listenToCollection("pendingFoundReports", function(data) {
-    pendingFoundReports = data;
-    if (typeof renderAdminFoundReportsList === "function") renderAdminFoundReportsList();
-  });
-  unsubscribers.push(unsub2);
-
-  // Listen to claims
-  var unsub3 = listenToCollection("claims", function(data) {
-    allClaims = data;
-    rebuildMyClaimsByEmail();
-    if (typeof renderAdminClaims === "function") renderAdminClaims();
-  });
-  unsubscribers.push(unsub3);
+  // DISABLED: Firestore quota exceeded
+  return;
 }
 
 async function doLogin() {
