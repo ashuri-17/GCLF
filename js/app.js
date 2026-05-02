@@ -2548,7 +2548,11 @@ function adminDeleteItem(id) {
   if (!requirePermission("admin.items.delete")) return;
   if (!confirm("Are you sure you want to delete this item? This cannot be undone.")) return;
   const deleted = findItemById(id);
-  itemsData = itemsData.filter((i) => i.id !== id);
+  itemsData = itemsData.filter((i) => String(i.id) !== String(id));
+  // Force save to IndexedDB
+  setToIndexedDB(STORAGE_KEY, JSON.parse(persistPayload())).then(() => {
+    console.log("Item deleted from IndexedDB");
+  }).catch(e => console.warn("IndexedDB delete failed:", e));
   savePersisted();
   renderAdminItems();
   renderItems();
