@@ -137,6 +137,7 @@ const DB_NAME = "gclf_portal_db";
 const DB_VERSION = 1;
 const STORE_NAME = "app_data";
 let db = null;
+let firestoreDb = null;
 
 function initIndexedDB() {
   return new Promise((resolve, reject) => {
@@ -181,22 +182,23 @@ async function setToIndexedDB(key, value) {
 
 async function loadPersisted() {
   try {
-    // Try IndexedDB first (50MB+ storage)
-    const data = await getFromIndexedDB(STORAGE_KEY);
-    if (data) return data;
-    
-    // Fallback: Check if there's legacy localStorage data to migrate
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      // Migrate to IndexedDB
-      await setToIndexedDB(STORAGE_KEY, parsed);
-      localStorage.removeItem(STORAGE_KEY); // Clear legacy data
-      return parsed;
+    initFirebaseIfNeeded();
+    const success = await loadAllDataFromFirestore();
+    if (!success) {
+      // Fallback to IndexedDB if Firestore fails
+      const data = await getFromIndexedDB(STORAGE_KEY);
+      if (data) return data;
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        await setToIndexedDB(STORAGE_KEY, parsed);
+        localStorage.removeItem(STORAGE_KEY);
+        return parsed;
+      }
     }
     return null;
   } catch (e) {
-    console.warn("IndexedDB load failed:", e);
+    console.warn("Failed to load from Firestore:", e);
     return null;
   }
 }
@@ -285,28 +287,17 @@ function capPersistedHistory() {
 
 async function savePersisted() {
   try {
-    // IndexedDB has 50MB+ limit - no quota management needed
-    const data = JSON.parse(persistPayload());
-    await setToIndexedDB(STORAGE_KEY, data);
+    initFirebaseIfNeeded();
+    const success = await saveAllDataToFirestore();
+    if (!success) {
+      // Fallback to IndexedDB if Firestore fails
+      const data = JSON.parse(persistPayload());
+      await setToIndexedDB(STORAGE_KEY, data);
+    }
     return true;
   } catch (e) {
-    console.warn("IndexedDB save failed:", e);
-    // Last resort: fallback to localStorage without images
-    try {
-      const stripped = JSON.parse(persistPayload());
-      // Remove all base64 images for localStorage fallback
-      ["itemsData", "lostReports", "pendingFoundReports"].forEach(key => {
-        if (Array.isArray(stripped[key])) {
-          stripped[key].forEach(r => {
-            if (r.image && String(r.image).startsWith("data:")) r.image = null;
-          });
-        }
-      });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(stripped));
-      return true;
-    } catch (_) {
-      return false;
-    }
+    console.warn("Failed to save to Firestore:", e);
+    return false;
   }
 }
 
@@ -600,7 +591,153 @@ function initFirebaseIfNeeded() {
   if (typeof firebase === "undefined") {
     throw new Error("Firebase SDK not loaded.");
   }
-  if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+  if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+    firestoreDb = firebase.firestore();
+  } else if (!firestoreDb) {
+    firestoreDb = firebase.firestore();
+  }
+}
+
+// ===================== FIRESTORE HELPERS =====================
+async function loadCollection(collectionName) {
+  if (!firestoreDb) initFirebaseIfNeeded();
+  const snapshot = await firestoreDb.collection(collectionName).orderBy("createdAt", "desc").get();
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
+async function saveCollection(collectionName, dataArray) {
+  if (!firestoreDb) initFirebaseIfNeeded();
+  const batch = firestoreDb.batch();
+  // First, delete all existing docs in the collection
+  const existing = await firestoreDb.collection(collectionName).get();
+  existing.docs.forEach(doc => batch.delete(doc.ref));
+  // Add new docs
+  dataArray.forEach(item => {
+    const docId = item.id || firestoreDb.collection(collectionName).doc().id;
+    const docRef = firestoreDb.collection(collectionName).doc(docId);
+    batch.set(docRef, { ...item, id: docId, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+  });
+  await batch.commit();
+}
+
+function listenToCollection(collectionName, callback) {
+  if (!firestoreDb) initFirebaseIfNeeded();
+  return firestoreDb.collection(collectionName).orderBy("createdAt", "desc").onSnapshot(snapshot => {
+    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    callback(data);
+  });
+}
+
+// ===================== FIRESTORE DATA SYNC =====================
+let unsubscribers = []; // Store unsubscribe functions for listeners
+
+async function loadAllDataFromFirestore() {
+  try {
+    // Check if Firestore collections are empty (first run)
+    const snapshot = await firestoreDb.collection("foundItems").limit(1).get();
+    if (snapshot.empty) {
+      // Migrate from IndexedDB if Firestore is empty
+      const indexedDBData = await getFromIndexedDB(STORAGE_KEY);
+      if (indexedDBData) {
+        itemsData = Array.isArray(indexedDBData.itemsData) ? indexedDBData.itemsData : [];
+        allClaims = Array.isArray(indexedDBData.allClaims) ? indexedDBData.allClaims : [];
+        lostReports = Array.isArray(indexedDBData.lostReports) ? indexedDBData.lostReports : [];
+        pendingFoundReports = Array.isArray(indexedDBData.pendingFoundReports) ? indexedDBData.pendingFoundReports : [];
+        lostItemLeads = Array.isArray(indexedDBData.lostItemLeads) ? indexedDBData.lostItemLeads : [];
+        studentProfiles = indexedDBData.studentProfiles || {};
+        auditLogs = Array.isArray(indexedDBData.auditLogs) ? indexedDBData.auditLogs : [];
+        notifications = Array.isArray(indexedDBData.notifications) ? indexedDBData.notifications : [];
+        systemConfig = indexedDBData.systemConfig || systemConfig;
+        await saveAllDataToFirestore();
+        console.log("Migrated data from IndexedDB to Firestore");
+      }
+    }
+    // Load fresh data from Firestore
+    [itemsData, allClaims, lostReports, pendingFoundReports, lostItemLeads] = await Promise.all([
+      loadCollection("foundItems"),
+      loadCollection("claims"),
+      loadCollection("lostReports"),
+      loadCollection("pendingFoundReports"),
+      loadCollection("lostItemLeads")
+    ]);
+    // Load student profiles (stored as individual docs keyed by email)
+    const profilesSnapshot = await firestoreDb.collection("studentProfiles").get();
+    studentProfiles = {};
+    profilesSnapshot.docs.forEach(doc => {
+      studentProfiles[doc.id] = doc.data();
+    });
+    // Load audit logs and notifications
+    auditLogs = await loadCollection("auditLogs");
+    notifications = await loadCollection("notifications");
+    // Load system config
+    const configDoc = await firestoreDb.collection("system").doc("config").get();
+    if (configDoc.exists) systemConfig = configDoc.data();
+    rebuildMyClaimsByEmail();
+    return true;
+  } catch (e) {
+    console.error("Failed to load from Firestore:", e);
+    return false;
+  }
+}
+
+async function saveAllDataToFirestore() {
+  try {
+    await Promise.all([
+      saveCollection("foundItems", itemsData),
+      saveCollection("claims", allClaims),
+      saveCollection("lostReports", lostReports),
+      saveCollection("pendingFoundReports", pendingFoundReports),
+      saveCollection("lostItemLeads", lostItemLeads),
+      saveCollection("auditLogs", auditLogs),
+      saveCollection("notifications", notifications)
+    ]);
+    // Save student profiles
+    const profilesBatch = firestoreDb.batch();
+    Object.keys(studentProfiles).forEach(email => {
+      const docRef = firestoreDb.collection("studentProfiles").doc(email);
+      profilesBatch.set(docRef, studentProfiles[email]);
+    });
+    await profilesBatch.commit();
+    // Save system config
+    await firestoreDb.collection("system").doc("config").set(systemConfig);
+    return true;
+  } catch (e) {
+    console.error("Failed to save to Firestore:", e);
+    return false;
+  }
+}
+
+function setupRealTimeListeners() {
+  // Unsubscribe existing listeners first
+  unsubscribers.forEach(unsub => unsub());
+  unsubscribers = [];
+
+  // Listen to found items
+  unsubscribers.push(listenToCollection("foundItems", (data) => {
+    itemsData = data;
+    if (typeof renderFoundItems === "function") renderFoundItems();
+    if (typeof updateStats === "function") updateStats();
+  }));
+
+  // Listen to claims
+  unsubscribers.push(listenToCollection("claims", (data) => {
+    allClaims = data;
+    rebuildMyClaimsByEmail();
+    if (typeof renderAdminClaims === "function") renderAdminClaims();
+  }));
+
+  // Listen to lost reports
+  unsubscribers.push(listenToCollection("lostReports", (data) => {
+    lostReports = data;
+    if (typeof renderLostReports === "function") renderLostReports();
+  }));
+
+  // Listen to pending found reports
+  unsubscribers.push(listenToCollection("pendingFoundReports", (data) => {
+    pendingFoundReports = data;
+    if (typeof renderPendingFoundReports === "function") renderPendingFoundReports();
+  }));
 }
 
 async function doLogin() {
@@ -660,6 +797,7 @@ async function launchStudentApp() {
   // Always refresh from persisted storage so newly approved
   // reports/items are visible to any user who logs in next.
   await bootstrapData();
+  setupRealTimeListeners();
   const p = getCurrentProfile();
   document.getElementById("sbStudentName").textContent = p?.fullName || currentUser.name;
   document.getElementById("sbStudentRole").textContent = p?.courseYear || currentUser.dept;
@@ -685,6 +823,7 @@ async function launchAdminApp() {
     return;
   }
   await bootstrapData();
+  setupRealTimeListeners();
   document.getElementById("adminApp").style.display = "block";
   startDateTime("adminTopbarDate");
   updateAdminStats();

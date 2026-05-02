@@ -1,3 +1,14 @@
-gclf-43f7f-firebase-adminsdk-fbsvc-f3c304d338.json
+# Firebase secrets
+gclf-43f7f-*.json
 serviceAccountKey.json
+*firebase-adminsdk*.json
+
+# Dependencies
 node_modules/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
