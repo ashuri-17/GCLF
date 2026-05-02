@@ -605,15 +605,31 @@ async function loadCollection(collectionName) {
 
 async function saveToFirestore(collectionName, item) {
   if (!firestoreDb) initFirebaseIfNeeded();
-  const docId = item.id || firestoreDb.collection(collectionName).doc().id;
-  const docRef = firestoreDb.collection(collectionName).doc(docId);
-  await docRef.set({
-    ...item,
-    id: docId,
-    createdAt: item.createdAt || firebase.firestore.FieldValue.serverTimestamp(),
+  var docId = String(item.id || firestoreDb.collection(collectionName).doc().id);
+  var docRef = firestoreDb.collection(String(collectionName)).doc(docId);
+  var dataToSave = {};
+  for (var key in item) {
+    if (key !== "id") dataToSave[key] = item[key];
+  }
+  dataToSave.id = docId;
+  if (!item.createdAt) {
+    dataToSave.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+  } else {
+    dataToSave.createdAt = item.createdAt;
+  }
+  dataToSave.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+  await docRef.set(dataToSave);
+  return docId;
+}
+
+async function updateItemInFirestore(collectionName, item) {
+  if (!firestoreDb) return;
+  var docId = String(item.id);
+  var docRef = firestoreDb.collection(String(collectionName)).doc(docId);
+  await docRef.update({
+    status: item.status,
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   });
-  return docId;
 }
 
 async function deleteFromFirestore(collectionName, docId) {
@@ -708,8 +724,35 @@ async function saveAllDataToFirestore() {
 }
 
 function setupRealTimeListeners() {
-  // Disabled: Firestore real-time sync temporarily off
-  return;
+  // Unsubscribe existing listeners first
+  for (var i = 0; i < unsubscribers.length; i++) {
+    if (typeof unsubscribers[i] === "function") unsubscribers[i]();
+  }
+  unsubscribers = [];
+
+  // Listen to found items
+  var unsub1 = listenToCollection("foundItems", function(data) {
+    itemsData = data;
+    if (typeof renderItems === "function") renderItems();
+    if (typeof updateStudentStats === "function") updateStudentStats();
+    if (typeof updateAdminStats === "function") updateAdminStats();
+  });
+  unsubscribers.push(unsub1);
+
+  // Listen to pending found reports
+  var unsub2 = listenToCollection("pendingFoundReports", function(data) {
+    pendingFoundReports = data;
+    if (typeof renderAdminFoundReportsList === "function") renderAdminFoundReportsList();
+  });
+  unsubscribers.push(unsub2);
+
+  // Listen to claims
+  var unsub3 = listenToCollection("claims", function(data) {
+    allClaims = data;
+    rebuildMyClaimsByEmail();
+    if (typeof renderAdminClaims === "function") renderAdminClaims();
+  });
+  unsubscribers.push(unsub3);
 }
 
 async function doLogin() {
@@ -769,6 +812,12 @@ async function launchStudentApp() {
   // Always refresh from persisted storage so newly approved
   // reports/items are visible to any user who logs in next.
   await bootstrapData();
+  // Load latest data from Firestore (sync from other users)
+  if (firestoreDb) {
+    try {
+      await loadAllDataFromFirestore();
+    } catch(e) { console.warn("Firestore load failed:", e); }
+  }
   setupRealTimeListeners();
   const p = getCurrentProfile();
   document.getElementById("sbStudentName").textContent = p?.fullName || currentUser.name;
@@ -795,6 +844,12 @@ async function launchAdminApp() {
     return;
   }
   await bootstrapData();
+  // Load latest data from Firestore (sync from other users)
+  if (firestoreDb) {
+    try {
+      await loadAllDataFromFirestore();
+    } catch(e) { console.warn("Firestore load failed:", e); }
+  }
   setupRealTimeListeners();
   document.getElementById("adminApp").style.display = "block";
   startDateTime("adminTopbarDate");
@@ -1518,11 +1573,19 @@ async function submitFoundItem(cid, isAdmin) {
     itemsData.unshift(newItem);
     addAuditLog("item.logged.admin", { itemId: newItem.id, name: newItem.name });
     showToast("Item reported and added to the system successfully!", "success");
+    // Save to Firestore for cross-browser sync
+    if (firestoreDb) {
+      saveToFirestore("foundItems", newItem).catch(e => console.warn("Firestore save failed:", e));
+    }
   } else {
     pendingFoundReports.unshift(reportPayload);
     addAuditLog("found.report.submitted", { reportId: reportPayload.id, name: reportPayload.name });
     addNotification(`Found-item report submitted for "${reportPayload.name}".`, "info", currentUser?.email || null);
     showToast("Found-item report submitted. Waiting for admin approval.", "info");
+    // Save to Firestore for cross-browser sync
+    if (firestoreDb) {
+      saveToFirestore("pendingFoundReports", reportPayload).catch(e => console.warn("Firestore save failed:", e));
+    }
   }
   let persisted = await savePersisted();
   if (!persisted) {
@@ -2238,6 +2301,11 @@ function approveFoundReport(id) {
   delete newItem.reportType;
   itemsData.unshift(newItem);
   savePersisted();
+  // Sync to Firestore for cross-browser sync
+  if (firestoreDb) {
+    saveToFirestore("foundItems", newItem).catch(e => console.warn("Firestore save failed:", e));
+    deleteFromFirestore("pendingFoundReports", String(r.id)).catch(e => console.warn("Firestore delete failed:", e));
+  }
   renderAdminReports();
   renderItems();
   renderRecentGrid();
@@ -2256,6 +2324,10 @@ function rejectFoundReport(id) {
   const target = pendingFoundReports.find((r) => Number(r.id) === Number(id));
   pendingFoundReports = pendingFoundReports.filter((r) => Number(r.id) !== Number(id));
   savePersisted();
+  // Sync to Firestore for cross-browser sync
+  if (firestoreDb && target) {
+    deleteFromFirestore("pendingFoundReports", String(target.id)).catch(e => console.warn("Firestore delete failed:", e));
+  }
   renderAdminReports();
   addAuditLog("report.found.rejected", { reportId: id, name: target?.name || "" });
   if (target?.reporterEmail) addNotification(`Your found-item report "${target.name}" was rejected.`, "danger", target.reporterEmail);
