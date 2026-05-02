@@ -790,6 +790,15 @@ async function launchStudentApp() {
   // Always refresh from persisted storage so newly approved
   // reports/items are visible to any user who logs in next.
   await bootstrapData();
+  // Sync from Firestore in background (get latest data from other users)
+  if (firestoreDb) {
+    loadAllDataFromFirestore().then(() => {
+      renderItems();
+      renderDashboardMixed();
+      updateStudentStats();
+    }).catch(e => console.warn("Firestore sync failed:", e));
+  }
+  setupRealTimeListeners();
   const p = getCurrentProfile();
   document.getElementById("sbStudentName").textContent = p?.fullName || currentUser.name;
   document.getElementById("sbStudentRole").textContent = p?.courseYear || currentUser.dept;
@@ -815,6 +824,17 @@ async function launchAdminApp() {
     return;
   }
   await bootstrapData();
+  // Sync from Firestore in background (get latest data from other users)
+  if (firestoreDb) {
+    loadAllDataFromFirestore().then(() => {
+      renderAdminItems();
+      renderAdminClaims();
+      renderAdminReports();
+      renderAdminOverviewLists();
+      updateAdminStats();
+    }).catch(e => console.warn("Firestore sync failed:", e));
+  }
+  setupRealTimeListeners();
   document.getElementById("adminApp").style.display = "block";
   startDateTime("adminTopbarDate");
   updateAdminStats();
