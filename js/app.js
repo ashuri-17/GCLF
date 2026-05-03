@@ -294,8 +294,9 @@ async function savePersisted() {
     // Always save to IndexedDB as local backup (fast, reliable)
     const data = JSON.parse(persistPayload());
     await setToIndexedDB(STORAGE_KEY, data);
-    // Also try to sync to Supabase in background (non-blocking)
-    saveAllDataToSupabase().catch(e => console.warn("Supabase sync failed:", e));
+    // Note: We do NOT auto-sync to Supabase here anymore
+    // Supabase is the source of truth - we only push to it when explicitly adding/updating items
+    // This prevents old local data from overwriting deletions made on other devices
     return true;
   } catch (e) {
     console.warn("Failed to save:", e);
@@ -740,6 +741,12 @@ async function loadAllDataFromSupabase() {
       console.warn("system_config table not available, using defaults");
     }
     rebuildMyClaimsByEmail();
+    // Save fresh Supabase data to IndexedDB to ensure all devices stay in sync
+    // This is critical: when phone loads after PC deleted items, phone gets the deletions
+    await setToIndexedDB(STORAGE_KEY, JSON.parse(persistPayload())).catch(e => 
+      console.warn("Failed to save fresh data to IndexedDB:", e)
+    );
+    console.log("Synced fresh Supabase data to IndexedDB");
     return true;
   } catch (e) {
     console.error("Failed to load from Supabase:", e.message);
