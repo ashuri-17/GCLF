@@ -1877,15 +1877,20 @@ function renderLostReportsList() {
     .map((r) => {
       const st = lostReportBadgeClass(r.status);
       const lb = lostReportBadgeLabel(r.status);
+      const name = sanitizeText(r.name);
+      const category = sanitizeText(r.category);
+      const location = sanitizeText(r.location);
+      const description = sanitizeText(r.description);
+      const adminNote = sanitizeText(r.adminNote);
       return `
       <div class="claim-row">
         <div class="claim-thumb">${r.image ? `<img src="${r.image}" style="width:100%;height:100%;object-fit:cover;"/>` : "📄"}</div>
         <div class="claim-info">
-          <div class="claim-info-name">${htmlEsc(r.name)}</div>
-          <div class="claim-info-sub">${htmlEsc(r.category)} • ${htmlEsc(r.location)}</div>
+          <div class="claim-info-name">${htmlEsc(name)}</div>
+          <div class="claim-info-sub">${htmlEsc(category)} • ${htmlEsc(location)}</div>
           <div class="claim-info-sub">Lost: ${fmtDate(r.dateLost)} • Submitted: ${r.submittedAt}</div>
-          <div class="claim-info-sub mt-1">${htmlEsc(r.description)}</div>
-          ${r.adminNote ? `<div class="claim-info-sub mt-1"><strong>Admin note:</strong> ${htmlEsc(r.adminNote)}</div>` : ""}
+          <div class="claim-info-sub mt-1">${htmlEsc(description)}</div>
+          ${r.adminNote ? `<div class="claim-info-sub mt-1"><strong>Admin note:</strong> ${htmlEsc(adminNote)}</div>` : ""}
         </div>
         <div class="text-end"><span class="s-badge ${st}">${htmlEsc(lb)}</span></div>
       </div>`;
@@ -2689,17 +2694,21 @@ function renderAdminOverviewLists() {
   recentEl.innerHTML = recent.length
     ? recent
         .map(
-          (item) => `
+          (item) => {
+            const name = sanitizeText(item.name);
+            const location = sanitizeText(item.location);
+            return `
     <div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid #f0f2f5;">
       <div style="width:40px;height:40px;border-radius:8px;background:#eef2fa;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">
         ${item.image ? `<img src="${item.image}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;"/>` : item.emoji}
       </div>
       <div style="flex:1;min-width:0;">
-        <div style="font-weight:700;font-size:0.85rem;color:#1a2a4a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.name}</div>
-        <div style="font-size:0.76rem;color:#aaa;">${item.location} &bull; ${fmtDate(item.date)}</div>
+        <div style="font-weight:700;font-size:0.85rem;color:#1a2a4a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${htmlEsc(name)}</div>
+        <div style="font-size:0.76rem;color:#aaa;">${htmlEsc(location)} &bull; ${fmtDate(item.date)}</div>
       </div>
       ${statusBadge(item.status)}
-    </div>`
+    </div>`;
+          }
         )
         .join("")
     : '<div class="empty-state" style="padding:20px;"><i class="bi bi-inbox"></i><p>No items yet.</p></div>';
@@ -2710,12 +2719,15 @@ function renderAdminOverviewLists() {
     ? recentClaims
         .map((c) => {
           const st = c.status === "Approved" ? "claimed" : c.status === "Rejected" ? "rejected" : "pending";
+          const itemName = sanitizeText(c.itemName);
+          const claimantName = sanitizeText(c.claimantName);
+          const studentId = sanitizeText(c.studentId);
           return `
       <div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid #f0f2f5;">
         <div style="width:40px;height:40px;border-radius:8px;background:#eef2fa;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">${c.itemEmoji}</div>
         <div style="flex:1;min-width:0;">
-          <div style="font-weight:700;font-size:0.85rem;color:#1a2a4a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${c.itemName}</div>
-          <div style="font-size:0.76rem;color:#aaa;">${c.claimantName} &bull; ${c.studentId}</div>
+          <div style="font-weight:700;font-size:0.85rem;color:#1a2a4a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${htmlEsc(itemName)}</div>
+          <div style="font-size:0.76rem;color:#aaa;">${htmlEsc(claimantName)} &bull; ${htmlEsc(studentId)}</div>
         </div>
         <span class="s-badge ${st}">${c.status}</span>
       </div>`;
@@ -2729,17 +2741,21 @@ function renderAdminOverviewLists() {
     lostEl.innerHTML = recentLost.length
       ? recentLost
           .map(
-            (r) => `
+            (r) => {
+              const name = sanitizeText(r.name);
+              const location = sanitizeText(r.location);
+              return `
       <div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid #f0f2f5;">
         <div style="width:40px;height:40px;border-radius:8px;background:#eef2fa;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">
           ${r.image ? `<img src="${r.image}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;"/>` : "🔍"}
         </div>
         <div style="flex:1;min-width:0;">
-          <div style="font-weight:700;font-size:0.85rem;color:#1a2a4a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${htmlEsc(r.name)}</div>
-          <div style="font-size:0.76rem;color:#aaa;">${htmlEsc(r.location)} &bull; ${fmtDate(r.dateLost)}</div>
+          <div style="font-weight:700;font-size:0.85rem;color:#1a2a4a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${htmlEsc(name)}</div>
+          <div style="font-size:0.76rem;color:#aaa;">${htmlEsc(location)} &bull; ${fmtDate(r.dateLost)}</div>
         </div>
         <span class="s-badge ${lostReportBadgeClass(r.status)}">${htmlEsc(lostReportBadgeLabel(r.status))}</span>
-      </div>`
+      </div>`;
+            }
           )
           .join("")
       : '<div class="empty-state" style="padding:20px;"><i class="bi bi-inbox"></i><p>No lost reports yet.</p></div>';
