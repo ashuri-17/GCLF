@@ -709,7 +709,7 @@ async function loadAllDataFromSupabase() {
     auditLogs = await loadFromSupabase("auditlogs");
     notifications = await loadFromSupabase("notifications");
     // Load system config
-    const { data: configData } = await sb.from("system_config").select('*').single();
+    const { data: configData } = await sb.from("system_config").select('*').eq('id', 1).maybeSingle();
     if (configData) systemConfig = configData;
     rebuildMyClaimsByEmail();
     return true;
@@ -815,53 +815,8 @@ async function doLogin() {
     email = `${email}@gordoncollege.edu.ph`;
   }
 
-  try {
-    // Try Supabase Auth first
-    const { data, error } = await sb.auth.signInWithPassword({
-      email,
-      password: pass
-    });
-
-    if (error) {
-      console.warn('Supabase auth failed:', error.message);
-      await localLoginFallback(email, pass, errEl);
-      return;
-    }
-
-    const u = data.user;
-    if (!u) {
-      errEl.style.display = "block";
-      errEl.textContent = "Invalid credentials. Please try again.";
-      return;
-    }
-
-    // Get user profile from Supabase
-    const { data: profile } = await sb
-      .from('studentprofiles')
-      .select('*')
-      .eq('email', email)
-      .single();
-
-    const role = profile?.role || (email.includes("admin") ? "admin" : "student");
-    currentUser = {
-      email,
-      role,
-      name: profile?.full_name || u.email.split("@")[0].toUpperCase(),
-      dept: profile?.course_year || (role === "admin" ? "Administration" : "Student")
-    };
-
-    errEl.style.display = "none";
-    document.getElementById("loginPage").style.display = "none";
-    syncMyClaims();
-    addAuditLog("auth.login", { email, role });
-    if (role === "admin") await launchAdminApp();
-    else await launchStudentApp();
-
-  } catch (e) {
-    console.error("Login error:", e);
-    errEl.style.display = "block";
-    errEl.textContent = "Login failed. Please try again.";
-  }
+  // Use local accounts only (Supabase Auth not configured for this app)
+  await localLoginFallback(email, pass, errEl);
 }
 
 async function localLoginFallback(email, pass, errEl) {
@@ -3052,5 +3007,6 @@ function showToast(msg, type = "success") {
 }
 
 bootstrapData();
+
 
 
