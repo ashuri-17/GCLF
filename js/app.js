@@ -1946,14 +1946,18 @@ function renderMyFoundReportsList() {
     ? empty
     : rows
         .map(({ kind, r }) => {
+          const name = sanitizeText(r.name);
+          const category = sanitizeText(r.category);
+          const location = sanitizeText(r.location);
+          const submittedAt = sanitizeText(r.submittedAt);
       if (kind === "pending") {
         return `
       <div class="claim-row">
         <div class="claim-thumb">${r.image ? `<img src="${r.image}" style="width:100%;height:100%;object-fit:cover;"/>` : r.emoji || "📦"}</div>
         <div class="claim-info">
-          <div class="claim-info-name">${htmlEsc(r.name)} <span class="s-badge pending">Pending review</span></div>
-          <div class="claim-info-sub">${htmlEsc(r.category)} • ${htmlEsc(r.location)} • ${fmtDate(r.date)}</div>
-          <div class="claim-info-sub">Submitted: ${htmlEsc(r.submittedAt || "—")}</div>
+          <div class="claim-info-name">${htmlEsc(name)} <span class="s-badge pending">Pending review</span></div>
+          <div class="claim-info-sub">${htmlEsc(category)} • ${htmlEsc(location)} • ${fmtDate(r.date)}</div>
+          <div class="claim-info-sub">Submitted: ${htmlEsc(submittedAt || "—")}</div>
         </div>
       </div>`;
       }
@@ -1961,8 +1965,8 @@ function renderMyFoundReportsList() {
       <div class="claim-row">
         <div class="claim-thumb">${r.image ? `<img src="${r.image}" style="width:100%;height:100%;object-fit:cover;"/>` : r.emoji || "📦"}</div>
         <div class="claim-info">
-          <div class="claim-info-name">${htmlEsc(r.name)} ${statusBadge(r.status)}</div>
-          <div class="claim-info-sub">${htmlEsc(r.category)} • ${htmlEsc(r.location)} • Found: ${fmtDate(r.date)}</div>
+          <div class="claim-info-name">${htmlEsc(name)} ${statusBadge(r.status)}</div>
+          <div class="claim-info-sub">${htmlEsc(category)} • ${htmlEsc(location)} • Found: ${fmtDate(r.date)}</div>
           <div class="claim-info-sub">Published listing</div>
         </div>
       </div>`;
@@ -2305,19 +2309,26 @@ function renderAdminReports() {
 
   const foundRows = pendingFoundReports
     .map(
-      (r) => `
+      (r) => {
+        const name = sanitizeText(r.name);
+        const category = sanitizeText(r.category);
+        const location = sanitizeText(r.location);
+        const reporterName = sanitizeText(r.reporterName || r.foundBy);
+        const reporterEmail = sanitizeText(r.reporterEmail || "");
+        return `
     <div class="claim-row">
       <div class="claim-thumb">${r.image ? `<img src="${r.image}" style="width:100%;height:100%;object-fit:cover;"/>` : r.emoji || "📦"}</div>
       <div class="claim-info">
-        <div class="claim-info-name">${htmlEsc(r.name)} <span class="s-badge pending">Pending</span></div>
-        <div class="claim-info-sub">${htmlEsc(r.category)} • ${htmlEsc(r.location)} • ${fmtDate(r.date)}</div>
-        <div class="claim-info-sub">By: ${htmlEsc(r.reporterName || r.foundBy)} • ${htmlEsc(r.reporterEmail || "")}</div>
+        <div class="claim-info-name">${htmlEsc(name)} <span class="s-badge pending">Pending</span></div>
+        <div class="claim-info-sub">${htmlEsc(category)} • ${htmlEsc(location)} • ${fmtDate(r.date)}</div>
+        <div class="claim-info-sub">By: ${htmlEsc(reporterName)} • ${htmlEsc(reporterEmail)}</div>
       </div>
       <div class="admin-actions">
         <button type="button" class="btn-sm-action approve" onclick="approveFoundReport(${r.id})"><i class="bi bi-check-lg"></i> Approve</button>
         <button type="button" class="btn-sm-action reject" onclick="rejectFoundReport(${r.id})"><i class="bi bi-x-lg"></i> Reject</button>
       </div>
-    </div>`
+    </div>`;
+      }
     )
     .join("");
   foundWrap.innerHTML = foundRows || '<div class="empty-state" style="padding:20px;"><i class="bi bi-inbox"></i><p>No pending found reports.</p></div>';
@@ -2332,13 +2343,18 @@ function renderAdminReports() {
           ? `<button type="button" class="btn-sm-action approve" onclick="approveLostReport(${r.id})"><i class="bi bi-check-lg"></i> Approve</button>
              <button type="button" class="btn-sm-action reject" onclick="rejectLostReport(${r.id})"><i class="bi bi-x-lg"></i> Reject</button>`
           : "";
+      const name = sanitizeText(r.name);
+      const category = sanitizeText(r.category);
+      const location = sanitizeText(r.location);
+      const reporterName = sanitizeText(r.reporterName);
+      const contact = sanitizeText(r.contact);
       return `
     <div class="claim-row">
       <div class="claim-thumb">${r.image ? `<img src="${r.image}" style="width:100%;height:100%;object-fit:cover;"/>` : "📄"}</div>
       <div class="claim-info">
-        <div class="claim-info-name">${htmlEsc(r.name)} <span class="s-badge ${st}">${htmlEsc(lb)}</span></div>
-        <div class="claim-info-sub">${htmlEsc(r.category)} • ${htmlEsc(r.location)} • Lost: ${fmtDate(r.dateLost)}</div>
-        <div class="claim-info-sub">By: ${htmlEsc(r.reporterName)} • ${htmlEsc(r.contact)}</div>
+        <div class="claim-info-name">${htmlEsc(name)} <span class="s-badge ${st}">${htmlEsc(lb)}</span></div>
+        <div class="claim-info-sub">${htmlEsc(category)} • ${htmlEsc(location)} • Lost: ${fmtDate(r.dateLost)}</div>
+        <div class="claim-info-sub">By: ${htmlEsc(reporterName)} • ${htmlEsc(contact)}</div>
       </div>
       <div class="admin-actions">${actions}</div>
     </div>`;
