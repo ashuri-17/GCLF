@@ -18,9 +18,9 @@ const EMAIL_DOMAIN = "gordoncollege.edu.ph";
 
 // ===================== LOCAL ACCOUNTS (Fallback if Supabase Auth not configured) =====================
 const ACCOUNTS = [
-  { email: "admin@gordoncollege.edu.ph", password: "admin123", role: "admin", name: "System Admin", dept: "Administration" },
-  { email: "student@gordoncollege.edu.ph", password: "password123", role: "student", name: "John Ashlee M. Maliga", dept: "CCS / BSIT" },
-  { email: "student2@gordoncollege.edu.ph", password: "pass2024", role: "student", name: "Maria Santos", dept: "CCS / BSCS" }
+  { email: "admin@gc.edu", password: "admin123", role: "admin", name: "System Admin", dept: "Administration" },
+  { email: "student@gc.edu", password: "password123", role: "student", name: "JOHN ASHLEE M. MALIGA", dept: "CCS / BSIT" },
+  { email: "student2@gc.edu", password: "pass2024", role: "student", name: "MARIA SANTOS", dept: "CCS / BSCS" }
 ];
 const ADMIN_EMAILS = ["admin@gc.edu", "admin@gordoncollege.edu.ph"];
 // Cloudinary unsigned upload config (free tier-friendly).
