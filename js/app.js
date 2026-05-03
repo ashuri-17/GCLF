@@ -816,7 +816,7 @@ async function doLogin() {
     }
 
     // Get user profile from Supabase
-    const { data: profile } = await sbAnon
+    const { data: profile } = await sb
       .from('studentprofiles')
       .select('*')
       .eq('email', email)
