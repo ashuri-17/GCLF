@@ -83,8 +83,8 @@ img { max-width: 100%; height: auto; }
   overflow: hidden;
 }
 .login-logo-img {
-  width: 110%;
-  height: 100%;
+  max-width: 100%;
+  height: auto;
   object-fit: contain;
   object-position: center;
   display: block;
