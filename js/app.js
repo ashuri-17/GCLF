@@ -14,6 +14,7 @@ sb.from('founditems').select('id').limit(1)
   });
 
 const STORAGE_KEY = "gclf_student_portal_v2";
+const EMAIL_DOMAIN = "gordoncollege.edu.ph";
 
 // ===================== LOCAL ACCOUNTS (Fallback if Supabase Auth not configured) =====================
 const ACCOUNTS = [
