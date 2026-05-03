@@ -372,6 +372,20 @@ function htmlEsc(s) {
     .replace(/>/g, "&gt;");
 }
 
+function sanitizeText(s) {
+  // Fix garbled UTF-8 characters that may be stored in old data
+  return String(s || "")
+    .replace(/â€¢/g, "•")
+    .replace(/â€™/g, "'")
+    .replace(/â€œ/g, '"')
+    .replace(/â€/g, '"')
+    .replace(/â€"/g, '"')
+    .replace(/â€”/g, "—")
+    .replace(/â€“/g, "–")
+    .replace(/â€¦/g, "…")
+    .replace(/Â/g, "");
+}
+
 function readFileAsDataURL(file, opts = {}) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -1224,7 +1238,9 @@ async function saveStudentProfile() {
 }
 
 function buildCard(item) {
-  const thumbContent = item.image ? `<img src="${item.image}" alt="${htmlEsc(item.name)}"/>` : `<span style="font-size:65px;">${item.emoji}</span>`;
+  const name = sanitizeText(item.name);
+  const location = sanitizeText(item.location);
+  const thumbContent = item.image ? `<img src="${item.image}" alt="${htmlEsc(name)}"/>` : `<span style="font-size:65px;">${item.emoji}</span>`;
   const matchHint = isItemMatchedForCurrentUser(item)
     ? `<div class="item-card-match"><i class="bi bi-stars"></i> Possible match to your lost report</div>`
     : "";
@@ -1238,10 +1254,10 @@ function buildCard(item) {
         </div>
         <div class="item-card-body">
           <div class="d-flex justify-content-between align-items-start">
-            <div class="item-card-name">${htmlEsc(item.name)}</div>
+            <div class="item-card-name">${htmlEsc(name)}</div>
             ${statusBadge(item.status)}
           </div>
-          <div class="item-card-loc"><i class="bi bi-geo-alt"></i> ${htmlEsc(item.location)}</div>
+          <div class="item-card-loc"><i class="bi bi-geo-alt"></i> ${htmlEsc(location)}</div>
           <div class="item-card-badges mt-1">${yoursBadge}</div>
           ${matchHint}
         </div>
@@ -1257,8 +1273,8 @@ function renderDashboardMixed() {
     type: "Found",
     date: x.date,
     id: x.id,
-    title: x.name,
-    subtitle: `${x.category} • ${x.location}`,
+    title: sanitizeText(x.name),
+    subtitle: `${sanitizeText(x.category)} • ${sanitizeText(x.location)}`,
     image: x.image,
     emoji: x.emoji,
     open: `openItemModal(${x.id})`
@@ -1271,8 +1287,8 @@ function renderDashboardMixed() {
         type: "Lost",
         date: x.dateLost,
         id: x.id,
-        title: x.name,
-        subtitle: `${x.category} • ${x.location}`,
+        title: sanitizeText(x.name),
+        subtitle: `${sanitizeText(x.category)} • ${sanitizeText(x.location)}`,
         image: x.image,
         emoji: "🔍",
         own,
@@ -1332,23 +1348,27 @@ function renderPublicLostItems() {
     list
       .map((r) => {
         const own = currentUser?.email && r.reporterEmail === currentUser.email;
+        const name = sanitizeText(r.name);
+        const category = sanitizeText(r.category);
+        const location = sanitizeText(r.location);
+        const description = sanitizeText(r.description);
         return `
       <div class="col-6 col-md-4 col-lg-3">
         <div class="item-card">
           <div class="item-card-thumb">
-            ${r.image ? `<img src="${r.image}" alt="${htmlEsc(r.name)}"/>` : `<span style="font-size:65px;">🔍</span>`}
+            ${r.image ? `<img src="${r.image}" alt="${htmlEsc(name)}"/>` : `<span style="font-size:65px;">🔍</span>`}
           </div>
           <div class="item-card-body">
             <div class="item-card-head">
-              <div class="item-card-name">${htmlEsc(r.name)}</div>
+              <div class="item-card-name">${htmlEsc(name)}</div>
               <div class="item-card-badges">
                 <span class="s-badge item-kind--lost">Lost</span>
                 ${own ? `<span class="s-badge item-kind--yours">Your report</span>` : ""}
               </div>
             </div>
-            <div class="item-card-loc"><i class="bi bi-tag"></i> ${htmlEsc(r.category)} • ${htmlEsc(r.location)}</div>
+            <div class="item-card-loc"><i class="bi bi-tag"></i> ${htmlEsc(category)} • ${htmlEsc(location)}</div>
             <div class="item-card-date"><i class="bi bi-calendar3"></i> Lost: ${fmtDate(r.dateLost)}</div>
-            <div class="item-card-desc">${htmlEsc(r.description)}</div>
+            <div class="item-card-desc">${htmlEsc(description)}</div>
             ${
               own
                 ? ""
