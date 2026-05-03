@@ -2332,9 +2332,8 @@ function approveFoundReport(id) {
   itemsData.unshift(newItem);
   savePersisted();
   // Sync to Supabase for cross-browser sync
-    saveToSupabase("founditems", newItem).catch(e => console.warn("Supabase save failed:", e));
-    deleteFromSupabase("pendingfoundreports", String(r.id)).catch(e => console.warn("Supabase delete failed:", e));
-  }
+  saveToSupabase("founditems", newItem).catch(e => console.warn("Supabase save failed:", e));
+  deleteFromSupabase("pendingfoundreports", String(r.id)).catch(e => console.warn("Supabase delete failed:", e));
   renderAdminReports();
   renderItems();
   renderRecentGrid();
@@ -2355,7 +2354,6 @@ function rejectFoundReport(id) {
   savePersisted();
   // Sync to Supabase for cross-browser sync
   deleteFromSupabase("pendingfoundreports", String(target.id)).catch(e => console.warn("Supabase delete failed:", e));
-  }
   renderAdminReports();
   addAuditLog("report.found.rejected", { reportId: id, name: target?.name || "" });
   if (target?.reporterEmail) addNotification(`Your found-item report "${target.name}" was rejected.`, "danger", target.reporterEmail);
