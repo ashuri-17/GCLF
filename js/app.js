@@ -664,13 +664,23 @@ async function updateInSupabase(tableName, item) {
 }
 
 async function deleteFromSupabase(tableName, docId) {
-  console.log('Deleting from Supabase:', tableName, 'id:', docId, 'type:', typeof docId);
+  // Normalize ID - could be number or string
+  const idStr = String(docId);
+  const idNum = Number(docId);
+  console.log('Deleting from Supabase:', tableName, 'id:', docId, 'str:', idStr, 'num:', idNum);
+  
   try {
-    // First check if the record exists
-    const { data: existing, error: checkError } = await sb.from(tableName).select('id').eq('id', docId).maybeSingle();
-    console.log('Check existing record in', tableName, ':', existing, 'error:', checkError);
+    // Try string ID first
+    let { data, error } = await sb.from(tableName).delete().eq('id', idStr).select();
     
-    const { data, error } = await sb.from(tableName).delete().eq('id', docId).select();
+    // If no rows deleted and ID is numeric, try as number
+    if ((!data || data.length === 0) && !isNaN(idNum) && idStr !== String(idNum)) {
+      console.log('Trying numeric ID:', idNum);
+      const result = await sb.from(tableName).delete().eq('id', idNum).select();
+      data = result.data;
+      error = result.error;
+    }
+    
     if (error) {
       console.error('Supabase delete ERROR on ' + tableName + ':', error.message, error);
       throw error;
@@ -2733,15 +2743,21 @@ function renderAdminItems() {
 async function adminDeleteItem(id) {
   if (!requirePermission("admin.items.delete")) return;
   if (!confirm("Are you sure you want to delete this item? This cannot be undone.")) return;
-  const deleted = findItemById(id);
+  
+  // Normalize ID to string for consistent comparison
+  const idStr = String(id);
+  const deleted = findItemById(idStr);
+  
   if (!deleted) {
     showToast("Item not found.", "danger");
     return;
   }
   
+  console.log("Deleting item:", deleted.name, "ID:", idStr, "(type:", typeof deleted.id, ")");
+  
   // First, try to delete from Supabase
   try {
-    await deleteFromSupabase("founditems", String(id));
+    await deleteFromSupabase("founditems", idStr);
     console.log("Item deleted from Supabase successfully");
   } catch (e) {
     console.error("Supabase delete failed:", e);
@@ -2750,20 +2766,26 @@ async function adminDeleteItem(id) {
   }
   
   // Only delete locally if Supabase delete succeeded
-  itemsData = itemsData.filter((i) => String(i.id) !== String(id));
+  // Use loose equality to handle both number and string IDs
+  itemsData = itemsData.filter((i) => String(i.id) !== idStr);
   
-  // Force save to IndexedDB
+  // Force save to IndexedDB (without triggering Supabase re-sync immediately)
   await setToIndexedDB(STORAGE_KEY, JSON.parse(persistPayload())).then(() => {
     console.log("Item deleted from IndexedDB");
   }).catch(e => console.warn("IndexedDB delete failed:", e));
   
+  // Update local storage
   await savePersisted();
+  
+  // Force immediate re-render BEFORE any real-time updates can interfere
+  console.log("Rendering with", itemsData.length, "items");
   renderAdminItems();
   renderItems();
   renderRecentGrid();
   updateStudentStats();
   updateAdminStats();
   renderAdminOverviewLists();
+  
   addAuditLog("item.deleted", { itemId: id, name: deleted?.name || "" });
   showToast("Item deleted from the system.", "danger");
 }
