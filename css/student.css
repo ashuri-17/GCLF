@@ -8,7 +8,8 @@
   --sidebar-w: 150px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; min-height: 100vh; }
+body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; min-height: 100vh; overflow-x: hidden; }
+img { max-width: 100%; height: auto; }
 
 /* ===================== SCROLLBAR ===================== */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -82,8 +83,8 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
   overflow: hidden;
 }
 .login-logo-img {
-  width: 110%;
-  height: 100%;
+  max-width: 100%;
+  height: auto;
   object-fit: contain;
   object-position: center;
   display: block;
