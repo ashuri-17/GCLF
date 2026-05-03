@@ -1012,8 +1012,9 @@ select.f-input {
   }
   
   .btn-sm-action {
-    padding: 3px 8px;
-    font-size: 0.7rem;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    min-height: 36px;
   }
   
   /* Stats cards mobile */
