@@ -88,22 +88,21 @@ ALTER TABLE public.auditLogs DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_config DISABLE ROW LEVEL SECURITY;
 
--- Enable Realtime for live sync
-BEGIN;
-  DO $$
-  BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
-      CREATE PUBLICATION supabase_realtime FOR TABLE public.foundItems, public.claims, public.pendingFoundReports;
-    ELSE
-      ALTER PUBLICATION supabase_realtime ADD TABLE public.foundItems;
-      ALTER PUBLICATION supabase_realtime ADD TABLE public.claims;
-      ALTER PUBLICATION supabase_realtime ADD TABLE public.pendingFoundReports;
-      ALTER PUBLICATION supabase_realtime ADD TABLE public.lostReports;
-      ALTER PUBLICATION supabase_realtime ADD TABLE public.lostItemLeads;
-    END IF;
-  END
-  $$;
-COMMIT;
+-- Enable Realtime for live sync (idempotent: won't error if tables already added)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    CREATE PUBLICATION supabase_realtime FOR TABLE public.foundItems, public.claims, public.pendingFoundReports, public.lostReports, public.lostItemLeads;
+  ELSE
+    -- Add each table individually, ignoring "already member" errors
+    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.foundItems; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.claims; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.pendingFoundReports; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.lostReports; EXCEPTION WHEN OTHERS THEN NULL; END;
+    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.lostItemLeads; EXCEPTION WHEN OTHERS THEN NULL; END;
+  END IF;
+END
+$$;
 
 -- Grant permissions to anon role (so the app can read/write)
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO anon;
