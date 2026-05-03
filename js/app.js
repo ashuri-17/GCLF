@@ -1798,6 +1798,8 @@ function renderLostMatches() {
     for (const item of itemsData) {
       if (itemMatchesLostReport(item, lost)) {
         matches.push({ lost, item });
+      }
+    }
   }
   if (!matches.length) {
     box.innerHTML = '<div class="empty-state" style="padding:24px 12px;"><i class="bi bi-search"></i><p>No possible matches yet.</p></div>';
