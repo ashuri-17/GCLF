@@ -598,27 +598,44 @@ async function loadFromSupabase(tableName) {
   // Extract data from JSONB column
   return (data || []).map(row => {
     const item = row.data || {};
-    item.id = row.id; // ensure id is at top level
+    if (tableName === 'studentprofiles') {
+      item.id = row.email; // PK for studentprofiles is email
+      item.email = row.email;
+    } else {
+      item.id = row.id; // ensure id is at top level
+    }
     return item;
   });
 }
 
 async function saveToSupabase(tableName, item) {
   try {
-    const docId = item.id || Date.now().toString() + Math.random().toString(36).substr(2, 9);
     const now = new Date().toISOString();
-    const record = {
-      id: docId,
-      data: { ...item, id: undefined }, // store in JSONB
-      created_at: item.created_at || now,
-      updated_at: now
-    };
+    const isStudentProfile = tableName === 'studentprofiles';
+    const docId = item.id || Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    let record;
+    if (isStudentProfile) {
+      record = {
+        email: item.email,
+        data: { ...item, email: undefined, id: undefined },
+        created_at: item.created_at || now,
+        updated_at: now
+      };
+    } else {
+      record = {
+        id: docId,
+        data: { ...item, id: undefined },
+        created_at: item.created_at || now,
+        updated_at: now
+      };
+    }
 
     const { data, error } = await sb.from(tableName).upsert(record).select();
     if (error) {
       console.warn('Supabase save error on ' + tableName + ':', error.message);
       return null;
     }
+    if (isStudentProfile) return data?.[0]?.email || item.email;
     return data?.[0]?.id || docId;
   } catch(e) {
     console.warn('Supabase save exception on ' + tableName + ':', e.message);
@@ -628,12 +645,15 @@ async function saveToSupabase(tableName, item) {
 
 async function updateInSupabase(tableName, item) {
   try {
+    const isStudentProfile = tableName === 'studentprofiles';
+    const pkField = isStudentProfile ? 'email' : 'id';
+    const pkValue = isStudentProfile ? item.email : item.id;
     const { error } = await sb.from(tableName)
       .update({
-        data: { ...item, id: undefined }, // store in JSONB
+        data: { ...item, id: undefined, email: undefined },
         updated_at: new Date().toISOString()
       })
-      .eq('id', item.id);
+      .eq(pkField, pkValue);
     if (error) {
       console.warn('Supabase update error on ' + tableName + ':', error.message);
     }
