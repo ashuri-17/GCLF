@@ -2,9 +2,9 @@
  * bulkCreateUsers.js
  *
  * Reads students.csv with columns: studentId,lastName
- * Creates Firebase Auth users:
- *   email:    [studentId]@gclf.app
- *   password: [lastName]GC[first digit of studentId]
+ * Creates Supabase Auth users:
+ *   email:    [studentId]@gordoncollege.edu.ph
+ *   password: [lastName]GC[first 4 digits of studentId]
  *
  * Usage:
  *   node bulkCreateUsers.js
@@ -13,14 +13,20 @@
 const fs = require("fs");
 const path = require("path");
 const csv = require("csv-parser");
-const admin = require("firebase-admin");
+const { createClient } = require("@supabase/supabase-js");
 
-const SERVICE_ACCOUNT_PATH = path.join(__dirname, "gclf-43f7f-firebase-adminsdk-fbsvc-87e494e52e.json");
+// Supabase configuration - USE SERVICE ROLE KEY for admin operations!
+const SUPABASE_URL = "https://wzdjjtttszukvfdbxluf.supabase.co";
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || "YOUR_SERVICE_ROLE_KEY_HERE";
+
 const CSV_PATH = path.join(__dirname, "students.csv");
 const EMAIL_DOMAIN = "gordoncollege.edu.ph";
 
-if (!fs.existsSync(SERVICE_ACCOUNT_PATH)) {
-  console.error(`Missing service account file: ${SERVICE_ACCOUNT_PATH}`);
+// Check for service key
+if (SUPABASE_SERVICE_KEY === "YOUR_SERVICE_ROLE_KEY_HERE") {
+  console.error("ERROR: Please set your SUPABASE_SERVICE_KEY");
+  console.error("Get it from: Supabase Dashboard → Project Settings → API → service_role key");
+  console.error("Run with: set SUPABASE_SERVICE_KEY=your_key&& node bulkCreateUsers.js");
   process.exit(1);
 }
 
@@ -29,8 +35,12 @@ if (!fs.existsSync(CSV_PATH)) {
   process.exit(1);
 }
 
-admin.initializeApp({
-  credential: admin.credential.cert(require(SERVICE_ACCOUNT_PATH))
+// Initialize Supabase with SERVICE ROLE KEY (admin privileges)
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
 });
 
 function normalize(value) {
@@ -59,15 +69,23 @@ async function createUserFromRow(row, rowNumber) {
   const email = buildEmail(studentId);
   const password = buildPassword(lastName, studentId);
 
-  const userRecord = await admin.auth().createUser({
+  // Create user in Supabase Auth using admin API
+  const { data: user, error } = await supabase.auth.admin.createUser({
     email,
     password,
-    displayName: `${lastName}, ${studentId}`,
-    emailVerified: false,
-    disabled: false
+    user_metadata: {
+      lastName,
+      studentId,
+      displayName: `${lastName}, ${studentId}`
+    },
+    email_confirm: true
   });
 
-  return { uid: userRecord.uid, email };
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return { uid: user.user.id, email };
 }
 
 async function run() {
