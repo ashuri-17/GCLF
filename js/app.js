@@ -228,7 +228,7 @@ function persistPayload() {
   });
 }
 
-/** Remove all base64 image payloads â€” they dominate quota; https URLs stay. */
+/** Remove all base64 image payloads — they dominate quota; https URLs stay. */
 function stripAllDataUrlImagesFromState() {
   let freed = false;
   const stripRow = (r) => {
@@ -501,7 +501,7 @@ function lostReportBadgeLabel(status) {
   const s = String(status || "");
   if (s === "Pending Review") return "Pending";
   if (s === "Pending Validation") return "Pending Admin Validation";
-  return s || "â€”";
+  return s || "—";
 }
 
 function ensureLostRecoveryClaim(report, lead) {
@@ -516,7 +516,7 @@ function ensureLostRecoveryClaim(report, lead) {
     id: Date.now(),
     itemId: null,
     itemName: report.name,
-    itemEmoji: "ðŸ”Ž",
+    itemEmoji: "🔎",
     claimantEmail: report.reporterEmail || "",
     claimantName: report.reporterName || "Reporter",
     studentId: "LOST-REPORT",
@@ -548,12 +548,12 @@ function finderHasLostLead(lostReportId, finderEmail) {
 
 function fmtDate(d) {
   const t = Date.parse(d);
-  if (isNaN(t)) return String(d || "â€”");
+  if (isNaN(t)) return String(d || "—");
   return new Date(t).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
 function emojiFor(cat) {
-  return { Electronics: "ðŸ“±", Accessories: "âŒš", Clothing: "ðŸ§¥", Documents: "ðŸªª", Bags: "ðŸŽ’", Others: "ðŸ“¦", Wallet: "ðŸ‘›", Keys: "ðŸ”‘" }[cat] || "ðŸ“¦";
+  return { Electronics: "📱", Accessories: "⌚", Clothing: "🧥", Documents: "🗂️", Bags: "🎒", Others: "📦", Wallet: "👛", Keys: "🔑" }[cat] || "📦";
 }
 
 function tokenize(s) {
@@ -1258,7 +1258,7 @@ function renderDashboardMixed() {
     date: x.date,
     id: x.id,
     title: x.name,
-    subtitle: `${x.category} â€¢ ${x.location}`,
+    subtitle: `${x.category} • ${x.location}`,
     image: x.image,
     emoji: x.emoji,
     open: `openItemModal(${x.id})`
@@ -1272,9 +1272,9 @@ function renderDashboardMixed() {
         date: x.dateLost,
         id: x.id,
         title: x.name,
-        subtitle: `${x.category} â€¢ ${x.location}`,
+        subtitle: `${x.category} • ${x.location}`,
         image: x.image,
-        emoji: "ðŸ”",
+        emoji: "🔍",
         own,
         open: own ? "" : `openFoundYourItemModal(${x.id})`
       };
@@ -1336,7 +1336,7 @@ function renderPublicLostItems() {
       <div class="col-6 col-md-4 col-lg-3">
         <div class="item-card">
           <div class="item-card-thumb">
-            ${r.image ? `<img src="${r.image}" alt="${htmlEsc(r.name)}"/>` : `<span style="font-size:65px;">ðŸ”</span>`}
+            ${r.image ? `<img src="${r.image}" alt="${htmlEsc(r.name)}"/>` : `<span style="font-size:65px;">🔍</span>`}
           </div>
           <div class="item-card-body">
             <div class="item-card-head">
@@ -1346,7 +1346,7 @@ function renderPublicLostItems() {
                 ${own ? `<span class="s-badge item-kind--yours">Your report</span>` : ""}
               </div>
             </div>
-            <div class="item-card-loc"><i class="bi bi-tag"></i> ${htmlEsc(r.category)} â€¢ ${htmlEsc(r.location)}</div>
+            <div class="item-card-loc"><i class="bi bi-tag"></i> ${htmlEsc(r.category)} • ${htmlEsc(r.location)}</div>
             <div class="item-card-date"><i class="bi bi-calendar3"></i> Lost: ${fmtDate(r.dateLost)}</div>
             <div class="item-card-desc">${htmlEsc(r.description)}</div>
             ${
@@ -1522,7 +1522,7 @@ async function submitClaim(id) {
     claimEntry.proofImageMissing = true;
     claimEntry.proofStoredRemotely = false;
     persisted = savePersisted();
-    if (persisted) showToast("Claim saved without proof image â€” browser storage was full.", "warning");
+    if (persisted) showToast("Claim saved without proof image — browser storage was full.", "warning");
   }
   if (!persisted) {
     // Roll back in-memory state if nothing was persisted.
@@ -1714,7 +1714,7 @@ async function submitFoundItem(cid, isAdmin) {
       pendingFoundReports[0].imageStoredRemotely = false;
     }
     persisted = savePersisted();
-    if (persisted) showToast("Report saved without image â€” browser storage was full.", "warning");
+    if (persisted) showToast("Report saved without image — browser storage was full.", "warning");
   }
   if (!persisted) {
     errEl.style.display = "block";
@@ -1829,7 +1829,7 @@ async function submitLostReport() {
     lostReports[0].image = null;
     lostReports[0].imageStoredRemotely = false;
     persisted = savePersisted();
-    if (persisted) showToast("Lost report saved without image â€” browser storage was full.", "warning");
+    if (persisted) showToast("Lost report saved without image — browser storage was full.", "warning");
   }
   if (!persisted) {
     err.style.display = "block";
@@ -1859,11 +1859,11 @@ function renderLostReportsList() {
       const lb = lostReportBadgeLabel(r.status);
       return `
       <div class="claim-row">
-        <div class="claim-thumb">${r.image ? `<img src="${r.image}" style="width:100%;height:100%;object-fit:cover;"/>` : "ðŸ“„"}</div>
+        <div class="claim-thumb">${r.image ? `<img src="${r.image}" style="width:100%;height:100%;object-fit:cover;"/>` : "📄"}</div>
         <div class="claim-info">
           <div class="claim-info-name">${htmlEsc(r.name)}</div>
-          <div class="claim-info-sub">${htmlEsc(r.category)} â€¢ ${htmlEsc(r.location)}</div>
-          <div class="claim-info-sub">Lost: ${fmtDate(r.dateLost)} â€¢ Submitted: ${r.submittedAt}</div>
+          <div class="claim-info-sub">${htmlEsc(r.category)} • ${htmlEsc(r.location)}</div>
+          <div class="claim-info-sub">Lost: ${fmtDate(r.dateLost)} • Submitted: ${r.submittedAt}</div>
           <div class="claim-info-sub mt-1">${htmlEsc(r.description)}</div>
           ${r.adminNote ? `<div class="claim-info-sub mt-1"><strong>Admin note:</strong> ${htmlEsc(r.adminNote)}</div>` : ""}
         </div>
@@ -1898,7 +1898,7 @@ function renderLostMatches() {
       <div class="claim-info">
         <div class="claim-info-name">${htmlEsc(m.item.name)}</div>
         <div class="claim-info-sub">Matched to your report: ${htmlEsc(m.lost.name)}</div>
-        <div class="claim-info-sub">${htmlEsc(m.item.category)} â€¢ ${htmlEsc(m.item.location)} â€¢ Found: ${fmtDate(m.item.date)}</div>
+        <div class="claim-info-sub">${htmlEsc(m.item.category)} • ${htmlEsc(m.item.location)} • Found: ${fmtDate(m.item.date)}</div>
       </div>
       <div class="text-end"><span class="s-badge pending">Match</span></div>
     </div>`
@@ -1929,20 +1929,20 @@ function renderMyFoundReportsList() {
       if (kind === "pending") {
         return `
       <div class="claim-row">
-        <div class="claim-thumb">${r.image ? `<img src="${r.image}" style="width:100%;height:100%;object-fit:cover;"/>` : r.emoji || "ðŸ“¦"}</div>
+        <div class="claim-thumb">${r.image ? `<img src="${r.image}" style="width:100%;height:100%;object-fit:cover;"/>` : r.emoji || "📦"}</div>
         <div class="claim-info">
           <div class="claim-info-name">${htmlEsc(r.name)} <span class="s-badge pending">Pending review</span></div>
-          <div class="claim-info-sub">${htmlEsc(r.category)} â€¢ ${htmlEsc(r.location)} â€¢ ${fmtDate(r.date)}</div>
-          <div class="claim-info-sub">Submitted: ${htmlEsc(r.submittedAt || "â€”")}</div>
+          <div class="claim-info-sub">${htmlEsc(r.category)} • ${htmlEsc(r.location)} • ${fmtDate(r.date)}</div>
+          <div class="claim-info-sub">Submitted: ${htmlEsc(r.submittedAt || "—")}</div>
         </div>
       </div>`;
       }
       return `
       <div class="claim-row">
-        <div class="claim-thumb">${r.image ? `<img src="${r.image}" style="width:100%;height:100%;object-fit:cover;"/>` : r.emoji || "ðŸ“¦"}</div>
+        <div class="claim-thumb">${r.image ? `<img src="${r.image}" style="width:100%;height:100%;object-fit:cover;"/>` : r.emoji || "📦"}</div>
         <div class="claim-info">
           <div class="claim-info-name">${htmlEsc(r.name)} ${statusBadge(r.status)}</div>
-          <div class="claim-info-sub">${htmlEsc(r.category)} â€¢ ${htmlEsc(r.location)} â€¢ Found: ${fmtDate(r.date)}</div>
+          <div class="claim-info-sub">${htmlEsc(r.category)} • ${htmlEsc(r.location)} • Found: ${fmtDate(r.date)}</div>
           <div class="claim-info-sub">Published listing</div>
         </div>
       </div>`;
@@ -2136,7 +2136,7 @@ async function submitFoundYourItem(lostReportId) {
     lostItemLeads[0].proofImage = null;
     lostItemLeads[0].proofStoredRemotely = false;
     persisted = savePersisted();
-    if (persisted) showToast("Response saved without image â€” browser storage was full.", "warning");
+    if (persisted) showToast("Response saved without image — browser storage was full.", "warning");
   }
   if (!persisted) {
     err.style.display = "block";
@@ -2178,7 +2178,7 @@ function acceptLostLead(leadId) {
   renderLostMatches();
   addAuditLog("lost.response.accepted", { leadId, lostReportId: lead.lostReportId });
   addNotification(`Your response for "${lead.itemName}" was accepted.`, "success", lead.finderEmail);
-  showToast("Response accepted. Lost report is now Claiming â€” chat is open.", "success");
+  showToast("Response accepted. Lost report is now Claiming — chat is open.", "success");
 }
 
 function markLostReportClaimed(lostReportId) {
@@ -2287,11 +2287,11 @@ function renderAdminReports() {
     .map(
       (r) => `
     <div class="claim-row">
-      <div class="claim-thumb">${r.image ? `<img src="${r.image}" style="width:100%;height:100%;object-fit:cover;"/>` : r.emoji || "ðŸ“¦"}</div>
+      <div class="claim-thumb">${r.image ? `<img src="${r.image}" style="width:100%;height:100%;object-fit:cover;"/>` : r.emoji || "📦"}</div>
       <div class="claim-info">
         <div class="claim-info-name">${htmlEsc(r.name)} <span class="s-badge pending">Pending</span></div>
-        <div class="claim-info-sub">${htmlEsc(r.category)} â€¢ ${htmlEsc(r.location)} â€¢ ${fmtDate(r.date)}</div>
-        <div class="claim-info-sub">By: ${htmlEsc(r.reporterName || r.foundBy)} â€¢ ${htmlEsc(r.reporterEmail || "")}</div>
+        <div class="claim-info-sub">${htmlEsc(r.category)} • ${htmlEsc(r.location)} • ${fmtDate(r.date)}</div>
+        <div class="claim-info-sub">By: ${htmlEsc(r.reporterName || r.foundBy)} • ${htmlEsc(r.reporterEmail || "")}</div>
       </div>
       <div class="admin-actions">
         <button type="button" class="btn-sm-action approve" onclick="approveFoundReport(${r.id})"><i class="bi bi-check-lg"></i> Approve</button>
@@ -2314,11 +2314,11 @@ function renderAdminReports() {
           : "";
       return `
     <div class="claim-row">
-      <div class="claim-thumb">${r.image ? `<img src="${r.image}" style="width:100%;height:100%;object-fit:cover;"/>` : "ðŸ“„"}</div>
+      <div class="claim-thumb">${r.image ? `<img src="${r.image}" style="width:100%;height:100%;object-fit:cover;"/>` : "📄"}</div>
       <div class="claim-info">
         <div class="claim-info-name">${htmlEsc(r.name)} <span class="s-badge ${st}">${htmlEsc(lb)}</span></div>
-        <div class="claim-info-sub">${htmlEsc(r.category)} â€¢ ${htmlEsc(r.location)} â€¢ Lost: ${fmtDate(r.dateLost)}</div>
-        <div class="claim-info-sub">By: ${htmlEsc(r.reporterName)} â€¢ ${htmlEsc(r.contact)}</div>
+        <div class="claim-info-sub">${htmlEsc(r.category)} • ${htmlEsc(r.location)} • Lost: ${fmtDate(r.dateLost)}</div>
+        <div class="claim-info-sub">By: ${htmlEsc(r.reporterName)} • ${htmlEsc(r.contact)}</div>
       </div>
       <div class="admin-actions">${actions}</div>
     </div>`;
@@ -2353,11 +2353,11 @@ function renderAdminLostRecoveries() {
       const badgeClass = c.status === "Approved" ? "claimed" : c.status === "Rejected" ? "rejected" : "pending";
       return `
       <div class="claim-row">
-        <div class="claim-thumb">${report?.image ? `<img src="${report.image}" style="width:100%;height:100%;object-fit:cover;"/>` : "ðŸ”"}</div>
+        <div class="claim-thumb">${report?.image ? `<img src="${report.image}" style="width:100%;height:100%;object-fit:cover;"/>` : "🔍"}</div>
         <div class="claim-info">
           <div class="claim-info-name">${htmlEsc(c.itemName)} <span class="s-badge ${badgeClass}">${htmlEsc(c.status)}</span></div>
-          <div class="claim-info-sub">Reporter: ${htmlEsc(c.claimantName)} â€¢ ${htmlEsc(c.claimantEmail || "â€”")}</div>
-          <div class="claim-info-sub">Finder: ${htmlEsc(lead?.finderName || "â€”")} â€¢ ${htmlEsc(lead?.finderEmail || "â€”")}</div>
+          <div class="claim-info-sub">Reporter: ${htmlEsc(c.claimantName)} • ${htmlEsc(c.claimantEmail || "—")}</div>
+          <div class="claim-info-sub">Finder: ${htmlEsc(lead?.finderName || "—")} • ${htmlEsc(lead?.finderEmail || "—")}</div>
           <div class="claim-info-sub">Lead chat accepted and marked claimed by reporter.</div>
           <div class="claim-info-sub">Lost report status: <span class="s-badge ${lostReportBadgeClass(report?.status || "")}">${htmlEsc(lostReportBadgeLabel(report?.status || ""))}</span></div>
         </div>
@@ -2496,7 +2496,7 @@ function renderNotificationsList() {
       return `<div class="claim-row" style="${isRead ? "opacity:.8;" : "border-left:4px solid #1a5fac;"}">
         <div class="claim-info">
           <div class="claim-info-name">${htmlEsc(n.message)}</div>
-          <div class="claim-info-sub">${htmlEsc(n.createdAt || "â€”")}</div>
+          <div class="claim-info-sub">${htmlEsc(n.createdAt || "—")}</div>
         </div>
       </div>`;
     })
@@ -2528,7 +2528,7 @@ function renderAdminAnalyticsPanel() {
       <div class="col-6 col-md-3"><div class="stat-card"><div><div class="stat-num">${lostReports.length + pendingFoundReports.length}</div><div class="stat-lbl">Open Reports</div></div></div></div>
     </div>
     <div style="font-size:.86rem;color:#667085;">
-      <strong>Top Categories:</strong> ${topCats.length ? topCats.map(([k, v]) => `${htmlEsc(k)} (${v})`).join(" â€¢ ") : "No data yet"}
+      <strong>Top Categories:</strong> ${topCats.length ? topCats.map(([k, v]) => `${htmlEsc(k)} (${v})`).join(" • ") : "No data yet"}
     </div>`;
 }
 
@@ -2547,7 +2547,7 @@ function renderAdminAuditLogs() {
   wrap.innerHTML = pageRows
     .map((a) => `<div style="padding:8px 0;border-bottom:1px solid #edf1f7;">
       <div style="font-size:.85rem;font-weight:700;color:#1a2a4a;">${htmlEsc(a.action)}</div>
-      <div style="font-size:.78rem;color:#667085;">${htmlEsc(a.actorEmail)} (${htmlEsc(a.actorRole)}) â€¢ ${htmlEsc(a.at)}</div>
+      <div style="font-size:.78rem;color:#667085;">${htmlEsc(a.actorEmail)} (${htmlEsc(a.actorRole)}) • ${htmlEsc(a.at)}</div>
     </div>`)
     .join("") + `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
@@ -2696,7 +2696,7 @@ function renderAdminOverviewLists() {
             (r) => `
       <div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid #f0f2f5;">
         <div style="width:40px;height:40px;border-radius:8px;background:#eef2fa;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">
-          ${r.image ? `<img src="${r.image}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;"/>` : "ðŸ”"}
+          ${r.image ? `<img src="${r.image}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;"/>` : "🔍"}
         </div>
         <div style="flex:1;min-width:0;">
           <div style="font-weight:700;font-size:0.85rem;color:#1a2a4a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${htmlEsc(r.name)}</div>
@@ -2944,18 +2944,18 @@ function viewClaimDetails(cid) {
     <div class="detail-row"><i class="bi bi-clock-fill"></i><span class="detail-lbl">Submitted:</span>${c.submittedAt}</div>
     ${
       isLostRecovery
-        ? `<div class="detail-row"><i class="bi bi-person-circle"></i><span class="detail-lbl">Reporter:</span>${htmlEsc(c.claimantName)} â€¢ ${htmlEsc(c.claimantEmail || "â€”")}</div>
-    <div class="detail-row"><i class="bi bi-person-badge"></i><span class="detail-lbl">Finder:</span>${htmlEsc(relatedLead?.finderName || "â€”")} â€¢ ${htmlEsc(relatedLead?.finderEmail || "â€”")}</div>
-    <div class="detail-row"><i class="bi bi-geo-alt"></i><span class="detail-lbl">Lost Location:</span>${htmlEsc(relatedLost?.location || "â€”")}</div>`
+        ? `<div class="detail-row"><i class="bi bi-person-circle"></i><span class="detail-lbl">Reporter:</span>${htmlEsc(c.claimantName)} • ${htmlEsc(c.claimantEmail || "—")}</div>
+    <div class="detail-row"><i class="bi bi-person-badge"></i><span class="detail-lbl">Finder:</span>${htmlEsc(relatedLead?.finderName || "—")} • ${htmlEsc(relatedLead?.finderEmail || "—")}</div>
+    <div class="detail-row"><i class="bi bi-geo-alt"></i><span class="detail-lbl">Lost Location:</span>${htmlEsc(relatedLost?.location || "—")}</div>`
         : ""
     }
     <div class="modal-section">Proof of Ownership</div>
     <div class="detail-row"><i class="bi bi-file-earmark-text-fill"></i><span class="detail-lbl">Description:</span>${htmlEsc(c.proofDesc)}</div>
-    <div class="detail-row"><i class="bi bi-tag-fill"></i><span class="detail-lbl">Marks:</span>${htmlEsc(c.marks || "â€”")}</div>
+    <div class="detail-row"><i class="bi bi-tag-fill"></i><span class="detail-lbl">Marks:</span>${htmlEsc(c.marks || "—")}</div>
     ${
       c.proofImage
         ? `<div style="margin:10px 0 14px;"><img src="${c.proofImage}" alt="Proof" style="max-width:100%;max-height:240px;border-radius:10px;border:1px solid #e0e6f0;"/></div>`
-        : `<div class="detail-row"><i class="bi bi-image-fill"></i><span class="detail-lbl">Photo File:</span>${htmlEsc(c.photoName || "â€”")}</div>
+        : `<div class="detail-row"><i class="bi bi-image-fill"></i><span class="detail-lbl">Photo File:</span>${htmlEsc(c.photoName || "—")}</div>
            ${c.proofImageMissing ? '<div style="font-size:0.82rem;color:#b54708;margin-top:6px;">Proof image was not saved due to browser storage limit.</div>' : ""}`
     }
     ${
