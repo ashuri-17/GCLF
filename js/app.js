@@ -3045,15 +3045,17 @@ function toggleMobileSidebar() {
   const studentSidebar = document.getElementById("studentSidebar");
   const adminSidebar = document.getElementById("adminSidebar");
   const overlay = document.getElementById("sidebarOverlay");
-  
+
   // Toggle the appropriate sidebar based on which app is visible
-  if (document.getElementById("mainApp").style.display !== "none") {
+  if (studentSidebar && document.getElementById("mainApp").style.display !== "none") {
     studentSidebar.classList.toggle("open");
-  } else if (document.getElementById("adminApp").style.display !== "none") {
+  } else if (adminSidebar && document.getElementById("adminApp").style.display !== "none") {
     adminSidebar.classList.toggle("open");
   }
-  
-  overlay.classList.toggle("open");
+
+  if (overlay) {
+    overlay.classList.toggle("open");
+  }
 }
 
 function initSidebarToggle() {
