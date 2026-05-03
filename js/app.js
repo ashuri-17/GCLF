@@ -825,11 +825,50 @@ async function doLogin() {
 
   // Allow login with just student ID
   if (email && !email.includes("@")) {
-    email = `${email}@gordoncollege.edu.ph`;
+    email = `${email}@${EMAIL_DOMAIN}`;
   }
 
-  // Use local accounts only (Supabase Auth not configured for this app)
-  await localLoginFallback(email, pass, errEl);
+  // Try Supabase Auth first
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({
+      email: email,
+      password: pass
+    });
+
+    if (error) {
+      console.warn("Supabase auth failed:", error.message);
+      // Fall back to local accounts
+      await localLoginFallback(email, pass, errEl);
+      return;
+    }
+
+    // Supabase auth success
+    const user = data.user;
+    const metadata = user.user_metadata || {};
+    
+    currentUser = {
+      email: user.email,
+      role: metadata.role || "student",
+      name: metadata.displayName || metadata.name || user.email.split('@')[0],
+      dept: metadata.dept || metadata.department || "",
+      studentId: metadata.studentId || "",
+      supabaseUid: user.id
+    };
+
+    errEl.style.display = "none";
+    document.getElementById("loginPage").style.display = "none";
+    syncMyClaims();
+    addAuditLog("auth.login.supabase", { email: currentUser.email, role: currentUser.role });
+    
+    if (currentUser.role === "admin") await launchAdminApp();
+    else await launchStudentApp();
+    return;
+    
+  } catch (e) {
+    console.error("Supabase auth error:", e);
+    // Fall back to local accounts
+    await localLoginFallback(email, pass, errEl);
+  }
 }
 
 async function localLoginFallback(email, pass, errEl) {
