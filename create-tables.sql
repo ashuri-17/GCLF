@@ -1,23 +1,12 @@
 -- SQL to create Supabase tables for Lost & Found app
 -- Run this in: Supabase Dashboard → SQL Editor
 -- https://supabase.com/dashboard/project/wzdjjtttszukvfdbxluf/sql
-
--- NOTE: This will DROP existing tables if they exist!
--- Remove the DROP statements below if you want to keep existing data.
-
--- Drop existing tables (optional, uncomment if needed)
--- DROP TABLE IF EXISTS public.claims;
--- DROP TABLE IF EXISTS public.notifications;
--- DROP TABLE IF EXISTS public.system_config;
--- DROP TABLE IF EXISTS public.foundItems;
--- DROP TABLE IF EXISTS public.lostReports;
--- DROP TABLE IF EXISTS public.pendingFoundReports;
--- DROP TABLE IF EXISTS public.lostItemLeads;
--- DROP TABLE IF EXISTS public.studentProfiles;
--- DROP TABLE IF EXISTS public.auditLogs;
+--
+-- Uses lowercase table names (PostgreSQL convention).
+-- The Supabase JS client sends names unquoted, so "foundItems" → founditems automatically.
 
 -- Create tables with JSONB data column (schemaless, like Firestore)
-CREATE TABLE IF NOT EXISTS public.foundItems (
+CREATE TABLE IF NOT EXISTS public.founditems (
   id TEXT PRIMARY KEY,
   data JSONB,
   created_at TIMESTAMPTZ DEFAULT now(),
@@ -31,35 +20,35 @@ CREATE TABLE IF NOT EXISTS public.claims (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS public.lostReports (
+CREATE TABLE IF NOT EXISTS public.lostreports (
   id TEXT PRIMARY KEY,
   data JSONB,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS public.pendingFoundReports (
+CREATE TABLE IF NOT EXISTS public.pendingfoundreports (
   id TEXT PRIMARY KEY,
   data JSONB,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS public.lostItemLeads (
+CREATE TABLE IF NOT EXISTS public.lostitemleads (
   id TEXT PRIMARY KEY,
   data JSONB,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS public.studentProfiles (
+CREATE TABLE IF NOT EXISTS public.studentprofiles (
   email TEXT PRIMARY KEY,
   data JSONB,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS public.auditLogs (
+CREATE TABLE IF NOT EXISTS public.auditlogs (
   id TEXT PRIMARY KEY,
   data JSONB,
   created_at TIMESTAMPTZ DEFAULT now()
@@ -78,28 +67,43 @@ CREATE TABLE IF NOT EXISTS public.system_config (
 );
 
 -- Disable Row Level Security (simpler for this app)
-ALTER TABLE public.foundItems DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.founditems DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.claims DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.lostReports DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.pendingFoundReports DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.lostItemLeads DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.studentProfiles DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.auditLogs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.lostreports DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pendingfoundreports DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.lostitemleads DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.studentprofiles DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.auditlogs DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_config DISABLE ROW LEVEL SECURITY;
 
--- Enable Realtime for live sync (idempotent: won't error if tables already added)
+-- Enable Realtime for live sync.
+-- Uses a DO block that checks table existence before adding to publication.
 DO $$
+DECLARE
+  pub_exists BOOLEAN;
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
-    CREATE PUBLICATION supabase_realtime FOR TABLE public.foundItems, public.claims, public.pendingFoundReports, public.lostReports, public.lostItemLeads;
+  SELECT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') INTO pub_exists;
+
+  IF NOT pub_exists THEN
+    CREATE PUBLICATION supabase_realtime FOR TABLE public.founditems, public.claims, public.pendingfoundreports, public.lostreports, public.lostitemleads;
   ELSE
-    -- Add each table individually, ignoring "already member" errors
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.foundItems; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.claims; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.pendingFoundReports; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.lostReports; EXCEPTION WHEN OTHERS THEN NULL; END;
-    BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.lostItemLeads; EXCEPTION WHEN OTHERS THEN NULL; END;
+    -- Add tables only if they exist and are not already members
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'founditems') THEN
+      BEGIN EXECUTE 'ALTER PUBLICATION supabase_realtime ADD TABLE public.founditems'; EXCEPTION WHEN OTHERS THEN NULL; END;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'claims') THEN
+      BEGIN EXECUTE 'ALTER PUBLICATION supabase_realtime ADD TABLE public.claims'; EXCEPTION WHEN OTHERS THEN NULL; END;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'pendingfoundreports') THEN
+      BEGIN EXECUTE 'ALTER PUBLICATION supabase_realtime ADD TABLE public.pendingfoundreports'; EXCEPTION WHEN OTHERS THEN NULL; END;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'lostreports') THEN
+      BEGIN EXECUTE 'ALTER PUBLICATION supabase_realtime ADD TABLE public.lostreports'; EXCEPTION WHEN OTHERS THEN NULL; END;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'lostitemleads') THEN
+      BEGIN EXECUTE 'ALTER PUBLICATION supabase_realtime ADD TABLE public.lostitemleads'; EXCEPTION WHEN OTHERS THEN NULL; END;
+    END IF;
   END IF;
 END
 $$;

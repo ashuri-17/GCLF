@@ -666,20 +666,20 @@ async function loadAllDataFromSupabase() {
   try {
     // Load data from Supabase
     [itemsData, allClaims, lostReports, pendingFoundReports, lostItemLeads] = await Promise.all([
-      loadFromSupabase("foundItems"),
+      loadFromSupabase("founditems"),
       loadFromSupabase("claims"),
-      loadFromSupabase("lostReports"),
-      loadFromSupabase("pendingFoundReports"),
-      loadFromSupabase("lostItemLeads")
+      loadFromSupabase("lostreports"),
+      loadFromSupabase("pendingfoundreports"),
+      loadFromSupabase("lostitemleads")
     ]);
     // Load student profiles
-    const { data: profilesData } = await sb.from("studentProfiles").select('*');
+    const { data: profilesData } = await sb.from("studentprofiles").select('*');
     studentProfiles = {};
     (profilesData || []).forEach(profile => {
       studentProfiles[profile.email || profile.id] = profile;
     });
     // Load audit logs and notifications
-    auditLogs = await loadFromSupabase("auditLogs");
+    auditLogs = await loadFromSupabase("auditlogs");
     notifications = await loadFromSupabase("notifications");
     // Load system config
     const { data: configData } = await sb.from("system_config").select('*').single();
@@ -697,7 +697,7 @@ async function saveAllDataToSupabase() {
     var saveOps = [];
     // foundItems
     for (var i = 0; i < itemsData.length; i++) {
-      saveOps.push(saveToSupabase("foundItems", itemsData[i]));
+      saveOps.push(saveToSupabase("founditems", itemsData[i]));
     }
     // claims
     for (var j = 0; j < allClaims.length; j++) {
@@ -705,19 +705,19 @@ async function saveAllDataToSupabase() {
     }
     // lostReports
     for (var k = 0; k < lostReports.length; k++) {
-      saveOps.push(saveToSupabase("lostReports", lostReports[k]));
+      saveOps.push(saveToSupabase("lostreports", lostReports[k]));
     }
     // pendingFoundReports
     for (var l = 0; l < pendingFoundReports.length; l++) {
-      saveOps.push(saveToSupabase("pendingFoundReports", pendingFoundReports[l]));
+      saveOps.push(saveToSupabase("pendingfoundreports", pendingFoundReports[l]));
     }
     // lostItemLeads
     for (var m = 0; m < lostItemLeads.length; m++) {
-      saveOps.push(saveToSupabase("lostItemLeads", lostItemLeads[m]));
+      saveOps.push(saveToSupabase("lostitemleads", lostItemLeads[m]));
     }
     // auditLogs
     for (var n = 0; n < auditLogs.length; n++) {
-      saveOps.push(saveToSupabase("auditLogs", auditLogs[n]));
+      saveOps.push(saveToSupabase("auditlogs", auditLogs[n]));
     }
     // notifications
     for (var p = 0; p < notifications.length; p++) {
@@ -726,7 +726,7 @@ async function saveAllDataToSupabase() {
     await Promise.all(saveOps);
     // Save student profiles
     const profileOps = Object.keys(studentProfiles).map(email =>
-    saveToSupabase("studentProfiles", { ...studentProfiles[email], email })
+    saveToSupabase("studentprofiles", { ...studentProfiles[email], email })
     );
     await Promise.all(profileOps);
     // Save system config
@@ -746,7 +746,7 @@ function setupRealTimeListeners() {
   unsubscribers = [];
 
   // Listen to found items
-  var unsub1 = listenToSupabase("foundItems", function(data) {
+  var unsub1 = listenToSupabase("founditems", function(data) {
     itemsData = data;
     if (typeof renderItems === "function") renderItems();
     if (typeof updateStudentStats === "function") updateStudentStats();
@@ -755,7 +755,7 @@ function setupRealTimeListeners() {
   unsubscribers.push(unsub1);
 
   // Listen to pending found reports
-  var unsub2 = listenToSupabase("pendingFoundReports", function(data) {
+  var unsub2 = listenToSupabase("pendingfoundreports", function(data) {
     pendingFoundReports = data;
     if (typeof renderAdminFoundReportsList === "function") renderAdminFoundReportsList();
   });
@@ -810,7 +810,7 @@ async function doLogin() {
 
     // Get user profile from Supabase
     const { data: profile } = await sbAnon
-      .from('student_profiles')
+      .from('studentprofiles')
       .select('*')
       .eq('email', email)
       .single();
@@ -986,7 +986,7 @@ function studentNav(page, el) {
     renderDashboardMixed();
   }
   if (page === "profile") buildStudentProfileForm();
-  if (page === "foundItems") renderItems();
+  if (page === "founditems") renderItems();
   if (page === "lostItems") {
     renderPublicLostItems();
     renderMyFoundLeads();
@@ -1628,14 +1628,14 @@ async function submitFoundItem(cid, isAdmin) {
     addAuditLog("item.logged.admin", { itemId: newItem.id, name: newItem.name });
     showToast("Item reported and added to the system successfully!", "success");
     // Save to Supabase for cross-browser sync
-    saveToSupabase("foundItems", newItem).catch(e => console.warn("Supabase save failed:", e));
+    saveToSupabase("founditems", newItem).catch(e => console.warn("Supabase save failed:", e));
   } else {
     pendingFoundReports.unshift(reportPayload);
     addAuditLog("found.report.submitted", { reportId: reportPayload.id, name: reportPayload.name });
     addNotification(`Found-item report submitted for "${reportPayload.name}".`, "info", currentUser?.email || null);
     showToast("Found-item report submitted. Waiting for admin approval.", "info");
     // Save to Supabase for cross-browser sync
-    saveToSupabase("pendingFoundReports", reportPayload).catch(e => console.warn("Supabase save failed:", e));
+    saveToSupabase("pendingfoundreports", reportPayload).catch(e => console.warn("Supabase save failed:", e));
   }
   let persisted = await savePersisted();
   if (!persisted) {
@@ -1666,7 +1666,7 @@ async function submitFoundItem(cid, isAdmin) {
   buildReportForm(cid, isAdmin);
   if (!isAdmin) {
     renderMyFoundReportsList();
-    studentNav("foundItems", document.querySelector('#studentSidebar .sb-item[data-page="foundItems"]'));
+    studentNav("founditems", document.querySelector('#studentSidebar .sb-item[data-page="founditems"]'));
   }
 }
 
@@ -2350,8 +2350,8 @@ function approveFoundReport(id) {
   itemsData.unshift(newItem);
   savePersisted();
   // Sync to Supabase for cross-browser sync
-    saveToSupabase("foundItems", newItem).catch(e => console.warn("Supabase save failed:", e));
-    deleteFromSupabase("pendingFoundReports", String(r.id)).catch(e => console.warn("Supabase delete failed:", e));
+    saveToSupabase("founditems", newItem).catch(e => console.warn("Supabase save failed:", e));
+    deleteFromSupabase("pendingfoundreports", String(r.id)).catch(e => console.warn("Supabase delete failed:", e));
   }
   renderAdminReports();
   renderItems();
@@ -2372,7 +2372,7 @@ function rejectFoundReport(id) {
   pendingFoundReports = pendingFoundReports.filter((r) => Number(r.id) !== Number(id));
   savePersisted();
   // Sync to Supabase for cross-browser sync
-  deleteFromSupabase("pendingFoundReports", String(target.id)).catch(e => console.warn("Supabase delete failed:", e));
+  deleteFromSupabase("pendingfoundreports", String(target.id)).catch(e => console.warn("Supabase delete failed:", e));
   }
   renderAdminReports();
   addAuditLog("report.found.rejected", { reportId: id, name: target?.name || "" });
