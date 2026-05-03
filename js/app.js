@@ -663,13 +663,18 @@ async function updateInSupabase(tableName, item) {
 }
 
 async function deleteFromSupabase(tableName, docId) {
+  console.log('Deleting from Supabase:', tableName, 'id:', docId);
   try {
-    const { error } = await sb.from(tableName).delete().eq('id', docId);
+    const { data, error } = await sb.from(tableName).delete().eq('id', docId).select();
     if (error) {
-      console.warn('Supabase delete error on ' + tableName + ':', error.message);
+      console.error('Supabase delete ERROR on ' + tableName + ':', error.message, error);
+      throw error;
     }
+    console.log('Supabase delete SUCCESS on ' + tableName + ':', data);
+    return data;
   } catch(e) {
-    console.warn('Supabase delete exception on ' + tableName + ':', e.message);
+    console.error('Supabase delete EXCEPTION on ' + tableName + ':', e.message);
+    throw e;
   }
 }
 
@@ -2678,18 +2683,23 @@ function renderAdminItems() {
     .join("");
 }
 
-function adminDeleteItem(id) {
+async function adminDeleteItem(id) {
   if (!requirePermission("admin.items.delete")) return;
   if (!confirm("Are you sure you want to delete this item? This cannot be undone.")) return;
   const deleted = findItemById(id);
   itemsData = itemsData.filter((i) => String(i.id) !== String(id));
   // Force save to IndexedDB
-  setToIndexedDB(STORAGE_KEY, JSON.parse(persistPayload())).then(() => {
+  await setToIndexedDB(STORAGE_KEY, JSON.parse(persistPayload())).then(() => {
     console.log("Item deleted from IndexedDB");
   }).catch(e => console.warn("IndexedDB delete failed:", e));
-  // Also delete from Supabase
-  deleteFromSupabase("founditems", String(id)).catch(e => console.warn("Supabase delete failed:", e));
-  savePersisted();
+  // Also delete from Supabase and WAIT for it
+  try {
+    await deleteFromSupabase("founditems", String(id));
+    console.log("Item deleted from Supabase successfully");
+  } catch (e) {
+    console.error("Supabase delete failed:", e);
+  }
+  await savePersisted();
   renderAdminItems();
   renderItems();
   renderRecentGrid();
