@@ -1,20 +1,20 @@
+// ===================== SUPABASE INITIALIZATION =====================
+// Supabase client - loaded from CDN: <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+const SUPABASE_URL = 'https://wzdjjtttszukvfdbxluf.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6ZGp0dHRzenVrdmZkYnhsdWYiLCJyb2xlIjoic3RhdGUifQ.4TWD7F-lQzZwdZBQ_WpZRQF63l2MvV03uQwWA4pwE';
+
+const { createClient } = supabase; // supabase global from CDN
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY); // main client for auth + db
+
 const STORAGE_KEY = "gclf_student_portal_v2";
 
+// ===================== LOCAL ACCOUNTS (Fallback if Supabase Auth not configured) =====================
 const ACCOUNTS = [
   { email: "admin@gc.edu", password: "admin123", role: "admin", name: "System Admin", dept: "Administration" },
   { email: "student@gc.edu", password: "password123", role: "student", name: "JOHN ASHLEE M. MALIGA", dept: "CCS / BSIT" },
   { email: "student2@gc.edu", password: "pass2024", role: "student", name: "MARIA SANTOS", dept: "CCS / BSCS" }
 ];
 const ADMIN_EMAILS = ["admin@gc.edu", "admin@gordoncollege.edu.ph"];
-const firebaseConfig = {
-  apiKey: "AIzaSyBYH-vjjg1oFlqmuoHwaO6Utm1JeIYV9ps",
-  authDomain: "gclf-43f7f.firebaseapp.com",
-  projectId: "gclf-43f7f",
-  storageBucket: "gclf-43f7f.firebasestorage.app",
-  messagingSenderId: "1010891807535",
-  appId: "1:1010891807535:web:e9f8881eb2881317e21fda",
-  measurementId: "G-94PFS9ZLJZ"
-};
 // Cloudinary unsigned upload config (free tier-friendly).
 // Fill these two values from your Cloudinary dashboard.
 const CLOUDINARY_CLOUD_NAME = "dx4cgsmaa";
@@ -137,7 +137,6 @@ const DB_NAME = "gclf_portal_db";
 const DB_VERSION = 1;
 const STORE_NAME = "app_data";
 let db = null;
-let firestoreDb = null;
 
 function initIndexedDB() {
   return new Promise((resolve, reject) => {
@@ -287,10 +286,8 @@ async function savePersisted() {
     // Always save to IndexedDB as local backup (fast, reliable)
     const data = JSON.parse(persistPayload());
     await setToIndexedDB(STORAGE_KEY, data);
-    // Also try to sync to Firestore in background (non-blocking)
-    if (firestoreDb) {
-      saveAllDataToFirestore().catch(e => console.warn("Firestore sync failed:", e));
-    }
+    // Also try to sync to Supabase in background (non-blocking)
+    saveAllDataToSupabase().catch(e => console.warn("Supabase sync failed:", e));
     return true;
   } catch (e) {
     console.warn("Failed to save:", e);
@@ -584,178 +581,159 @@ function isItemMatchedForCurrentUser(item) {
   return mine.some((r) => itemMatchesLostReport(item, r));
 }
 
-function initFirebaseIfNeeded() {
-  if (typeof firebase === "undefined") {
-    throw new Error("Firebase SDK not loaded.");
+// ===================== SUPABASE HELPERS =====================
+async function loadFromSupabase(tableName) {
+  const { data, error } = await sb.from(tableName).select('*');
+  if (error) {
+    console.warn('Supabase load error on ' + tableName + ':', error.message);
+    return [];
   }
-  if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
-    firestoreDb = firebase.firestore();
-  } else if (!firestoreDb) {
-    firestoreDb = firebase.firestore();
-  }
+  // Extract data from JSONB column
+  return (data || []).map(row => {
+    const item = row.data || {};
+    item.id = row.id; // ensure id is at top level
+    return item;
+  });
 }
 
-// ===================== FIRESTORE HELPERS =====================
-async function loadCollection(collectionName) {
-  if (!firestoreDb) initFirebaseIfNeeded();
-  const snapshot = await firestoreDb.collection(collectionName).get();
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-}
-
-async function saveToFirestore(collectionName, item) {
-  if (!firestoreDb) initFirebaseIfNeeded();
+async function saveToSupabase(tableName, item) {
   try {
-    var docId = String(item.id || firestoreDb.collection(collectionName).doc().id);
-    var docRef = firestoreDb.collection(String(collectionName)).doc(docId);
-    var dataToSave = {};
-    for (var key in item) {
-      if (key !== "id") dataToSave[key] = item[key];
+    const docId = item.id || Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    const now = new Date().toISOString();
+    const record = {
+      id: docId,
+      data: { ...item, id: undefined }, // store in JSONB
+      created_at: item.created_at || now,
+      updated_at: now
+    };
+
+    const { data, error } = await sb.from(tableName).upsert(record).select();
+    if (error) {
+      console.warn('Supabase save error on ' + tableName + ':', error.message);
+      return null;
     }
-    dataToSave.id = docId;
-    if (!item.createdAt) {
-      dataToSave.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-    } else {
-      dataToSave.createdAt = item.createdAt;
-    }
-    dataToSave.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
-    await docRef.set(dataToSave);
-    return docId;
+    return data?.[0]?.id || docId;
   } catch(e) {
-    if (e.code === 'resource-exhausted') {
-      console.warn('Firestore quota exceeded, skipping save');
-    } else {
-      console.warn('Firestore save error:', e.message);
-    }
+    console.warn('Supabase save exception on ' + tableName + ':', e.message);
     return null;
   }
 }
 
-async function updateItemInFirestore(collectionName, item) {
-  if (!firestoreDb) return;
+async function updateInSupabase(tableName, item) {
   try {
-    var docId = String(item.id);
-    var docRef = firestoreDb.collection(String(collectionName)).doc(docId);
-    await docRef.update({
-      status: item.status,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-  } catch(e) {
-    if (e.code !== 'resource-exhausted') {
-      console.warn('Firestore update error:', e.message);
+    const { error } = await sb.from(tableName)
+      .update({
+        data: { ...item, id: undefined }, // store in JSONB
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', item.id);
+    if (error) {
+      console.warn('Supabase update error on ' + tableName + ':', error.message);
     }
+  } catch(e) {
+    console.warn('Supabase update exception on ' + tableName + ':', e.message);
   }
 }
 
-
-async function deleteFromFirestore(collectionName, docId) {
-  if (!firestoreDb) initFirebaseIfNeeded();
-  await firestoreDb.collection(collectionName).doc(docId).delete();
-}
-
-function listenToCollection(collectionName, callback) {
-  if (!firestoreDb) initFirebaseIfNeeded();
-  return firestoreDb.collection(collectionName).onSnapshot(
-    function(snapshot) {
-      var data = [];
-      snapshot.docs.forEach(function(doc) {
-        var obj = doc.data();
-        obj.id = doc.id;
-        data.push(obj);
-      });
-      callback(data);
-    },
-    function(error) {
-      console.warn("Firestore listener error on " + collectionName + ":", error);
+async function deleteFromSupabase(tableName, docId) {
+  try {
+    const { error } = await sb.from(tableName).delete().eq('id', docId);
+    if (error) {
+      console.warn('Supabase delete error on ' + tableName + ':', error.message);
     }
-  );
+  } catch(e) {
+    console.warn('Supabase delete exception on ' + tableName + ':', e.message);
+  }
 }
 
-// ===================== FIRESTORE DATA SYNC =====================
+function listenToSupabase(tableName, callback) {
+  const channel = sb.channel('public:' + tableName)
+    .on('postgres_changes', { event: '*', schema: 'public', table: tableName }, (payload) => {
+      loadFromSupabase(tableName).then(data => callback(data));
+    })
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        console.log('Subscribed to ' + tableName);
+      }
+    });
+  return () => sb.removeChannel(channel);
+}
+
+// ===================== SUPABASE DATA SYNC =====================
 let unsubscribers = []; // Store unsubscribe functions for listeners
 
-async function loadAllDataFromFirestore() {
+async function loadAllDataFromSupabase() {
   try {
-    // Load data from Firestore
+    // Load data from Supabase
     [itemsData, allClaims, lostReports, pendingFoundReports, lostItemLeads] = await Promise.all([
-      loadCollection("foundItems"),
-      loadCollection("claims"),
-      loadCollection("lostReports"),
-      loadCollection("pendingFoundReports"),
-      loadCollection("lostItemLeads")
+      loadFromSupabase("foundItems"),
+      loadFromSupabase("claims"),
+      loadFromSupabase("lostReports"),
+      loadFromSupabase("pendingFoundReports"),
+      loadFromSupabase("lostItemLeads")
     ]);
     // Load student profiles
-    const profilesSnapshot = await firestoreDb.collection("studentProfiles").get();
+    const { data: profilesData } = await sb.from("studentProfiles").select('*');
     studentProfiles = {};
-    profilesSnapshot.docs.forEach(doc => {
-      studentProfiles[doc.id] = doc.data();
+    (profilesData || []).forEach(profile => {
+      studentProfiles[profile.email || profile.id] = profile;
     });
     // Load audit logs and notifications
-    auditLogs = await loadCollection("auditLogs");
-    notifications = await loadCollection("notifications");
+    auditLogs = await loadFromSupabase("auditLogs");
+    notifications = await loadFromSupabase("notifications");
     // Load system config
-    const configDoc = await firestoreDb.collection("system").doc("config").get();
-    if (configDoc.exists) systemConfig = configDoc.data();
+    const { data: configData } = await sb.from("system_config").select('*').single();
+    if (configData) systemConfig = configData;
     rebuildMyClaimsByEmail();
     return true;
   } catch (e) {
-    if (e.code === 'resource-exhausted') {
-      console.warn('Firestore quota exceeded, skipping load');
-    } else {
-      console.error("Failed to load from Firestore:", e.message);
-    }
+    console.error("Failed to load from Supabase:", e.message);
     return false;
   }
 }
 
-async function saveAllDataToFirestore() {
+async function saveAllDataToSupabase() {
   try {
     var saveOps = [];
     // foundItems
     for (var i = 0; i < itemsData.length; i++) {
-      saveOps.push(saveToFirestore("foundItems", itemsData[i]));
+      saveOps.push(saveToSupabase("foundItems", itemsData[i]));
     }
     // claims
     for (var j = 0; j < allClaims.length; j++) {
-      saveOps.push(saveToFirestore("claims", allClaims[j]));
+      saveOps.push(saveToSupabase("claims", allClaims[j]));
     }
     // lostReports
     for (var k = 0; k < lostReports.length; k++) {
-      saveOps.push(saveToFirestore("lostReports", lostReports[k]));
+      saveOps.push(saveToSupabase("lostReports", lostReports[k]));
     }
     // pendingFoundReports
     for (var l = 0; l < pendingFoundReports.length; l++) {
-      saveOps.push(saveToFirestore("pendingFoundReports", pendingFoundReports[l]));
+      saveOps.push(saveToSupabase("pendingFoundReports", pendingFoundReports[l]));
     }
     // lostItemLeads
     for (var m = 0; m < lostItemLeads.length; m++) {
-      saveOps.push(saveToFirestore("lostItemLeads", lostItemLeads[m]));
+      saveOps.push(saveToSupabase("lostItemLeads", lostItemLeads[m]));
     }
     // auditLogs
     for (var n = 0; n < auditLogs.length; n++) {
-      saveOps.push(saveToFirestore("auditLogs", auditLogs[n]));
+      saveOps.push(saveToSupabase("auditLogs", auditLogs[n]));
     }
     // notifications
     for (var p = 0; p < notifications.length; p++) {
-      saveOps.push(saveToFirestore("notifications", notifications[p]));
+      saveOps.push(saveToSupabase("notifications", notifications[p]));
     }
     await Promise.all(saveOps);
     // Save student profiles
-    const profilesBatch = firestoreDb.batch();
-    Object.keys(studentProfiles).forEach(email => {
-      const docRef = firestoreDb.collection("studentProfiles").doc(email);
-      profilesBatch.set(docRef, studentProfiles[email]);
-    });
-    await profilesBatch.commit();
+    const profileOps = Object.keys(studentProfiles).map(email =>
+    saveToSupabase("studentProfiles", { ...studentProfiles[email], email })
+    );
+    await Promise.all(profileOps);
     // Save system config
-    await firestoreDb.collection("system").doc("config").set(systemConfig);
+    await sb.from("system_config").upsert({ id: 1, ...systemConfig });
     return true;
   } catch (e) {
-    if (e.code === 'resource-exhausted') {
-      console.warn('Firestore quota exceeded, skipping save');
-    } else {
-      console.error("Failed to save to Firestore:", e.message);
-    }
+    console.error("Failed to save to Supabase:", e.message);
     return false;
   }
 }
@@ -768,7 +746,7 @@ function setupRealTimeListeners() {
   unsubscribers = [];
 
   // Listen to found items
-  var unsub1 = listenToCollection("foundItems", function(data) {
+  var unsub1 = listenToSupabase("foundItems", function(data) {
     itemsData = data;
     if (typeof renderItems === "function") renderItems();
     if (typeof updateStudentStats === "function") updateStudentStats();
@@ -777,14 +755,14 @@ function setupRealTimeListeners() {
   unsubscribers.push(unsub1);
 
   // Listen to pending found reports
-  var unsub2 = listenToCollection("pendingFoundReports", function(data) {
+  var unsub2 = listenToSupabase("pendingFoundReports", function(data) {
     pendingFoundReports = data;
     if (typeof renderAdminFoundReportsList === "function") renderAdminFoundReportsList();
   });
   unsubscribers.push(unsub2);
 
   // Listen to claims
-  var unsub3 = listenToCollection("claims", function(data) {
+  var unsub3 = listenToSupabase("claims", function(data) {
     allClaims = data;
     rebuildMyClaimsByEmail();
     if (typeof renderAdminClaims === "function") renderAdminClaims();
@@ -793,68 +771,109 @@ function setupRealTimeListeners() {
 }
 
 async function doLogin() {
-  let email = document.getElementById("loginEmail").value.trim().toLowerCase();
-  const pass = document.getElementById("loginPass").value;
+  const emailEl = document.getElementById("loginEmail");
+  const passEl = document.getElementById("loginPass");
   const errEl = document.getElementById("loginErr");
-  
-  // Allow login with just student ID (e.g., "202411404") - auto-append domain
+  let email = emailEl.value.trim().toLowerCase();
+  const pass = passEl.value;
+
+  if (!email || !pass) {
+    errEl.style.display = "block";
+    errEl.textContent = "Please enter email and password.";
+    return;
+  }
+
+  // Allow login with just student ID
   if (email && !email.includes("@")) {
     email = `${email}@gordoncollege.edu.ph`;
   }
-  
+
   try {
-    initFirebaseIfNeeded();
-    const cred = await firebase.auth().signInWithEmailAndPassword(email, pass);
-    const u = cred.user;
-    const role = ADMIN_EMAILS.includes(email) || email.startsWith("admin") ? "admin" : "student";
+    // Try Supabase Auth first
+    const { data, error } = await sb.auth.signInWithPassword({
+      email,
+      password: pass
+    });
+
+    if (error) {
+      console.warn('Supabase auth failed:', error.message);
+      await localLoginFallback(email, pass, errEl);
+      return;
+    }
+
+    const u = data.user;
+    if (!u) {
+      errEl.style.display = "block";
+      errEl.textContent = "Invalid credentials. Please try again.";
+      return;
+    }
+
+    // Get user profile from Supabase
+    const { data: profile } = await sbAnon
+      .from('student_profiles')
+      .select('*')
+      .eq('email', email)
+      .single();
+
+    const role = profile?.role || (email.includes("admin") ? "admin" : "student");
     currentUser = {
       email,
       role,
-      name: (u && u.displayName) || email.split("@")[0].toUpperCase(),
-      dept: role === "admin" ? "Administration" : "Student"
+      name: profile?.full_name || u.email.split("@")[0].toUpperCase(),
+      dept: profile?.course_year || (role === "admin" ? "Administration" : "Student")
     };
+
     errEl.style.display = "none";
     document.getElementById("loginPage").style.display = "none";
     syncMyClaims();
     addAuditLog("auth.login", { email, role });
     if (role === "admin") await launchAdminApp();
     else await launchStudentApp();
-    return;
-  } catch (firebaseErr) {
-    // Fallback to local demo accounts for development convenience.
-    // Check both full email and student ID formats
-    const account = ACCOUNTS.find((a) => {
-      const accountEmail = a.email.toLowerCase();
-      const inputEmail = email.toLowerCase();
-      // Match full email OR match student ID (part before @)
-      return (accountEmail === inputEmail || accountEmail.split("@")[0] === inputEmail.split("@")[0]) 
-        && a.password === pass;
-    });
-    if (!account) {
-      errEl.style.display = "block";
-      errEl.textContent = "Invalid credentials. Please try again.";
-      return;
-    }
-    errEl.style.display = "none";
-    currentUser = account;
-    document.getElementById("loginPage").style.display = "none";
-    syncMyClaims();
-    addAuditLog("auth.login.local", { email: account.email, role: account.role });
-    if (account.role === "admin") await launchAdminApp();
-    else await launchStudentApp();
+
+  } catch (e) {
+    console.error("Login error:", e);
+    errEl.style.display = "block";
+    errEl.textContent = "Login failed. Please try again.";
   }
+}
+
+async function localLoginFallback(email, pass, errEl) {
+  // Fallback to demo accounts if Supabase auth not set up
+  const ACCOUNTS = [
+    { email: "admin@gc.edu", password: "admin123", role: "admin", name: "System Admin", dept: "Administration" },
+    { email: "student@gc.edu", password: "password123", role: "student", name: "JOHN ASHLEE M. MALIGA", dept: "CCS / BSIT" },
+    { email: "student2@gc.edu", password: "pass2024", role: "student", name: "MARIA SANTOS", dept: "CCS / BSCS" }
+  ];
+
+  const account = ACCOUNTS.find((a) => {
+    const accountEmail = a.email.toLowerCase();
+    const inputEmail = email.toLowerCase();
+    return (accountEmail === inputEmail || accountEmail.split("@")[0] === inputEmail.split("@")[0]) && a.password === pass;
+  });
+
+  if (!account) {
+    errEl.style.display = "block";
+    errEl.textContent = "Invalid credentials. Please try again.";
+    return;
+  }
+
+  currentUser = account;
+  errEl.style.display = "none";
+  document.getElementById("loginPage").style.display = "none";
+  syncMyClaims();
+  addAuditLog("auth.login.local", { email: account.email, role: account.role });
+  if (account.role === "admin") await launchAdminApp();
+  else await launchStudentApp();
 }
 
 async function launchStudentApp() {
   // Always refresh from persisted storage so newly approved
   // reports/items are visible to any user who logs in next.
   await bootstrapData();
-  // Load latest data from Firestore (sync from other users)
-  if (firestoreDb) {
-    try {
-      await loadAllDataFromFirestore();
-    } catch(e) { console.warn("Firestore load failed:", e); }
-  }
+  // Load latest data from Supabase (sync from other users)
+  try {
+    await loadAllDataFromSupabase();
+  } catch(e) { console.warn("Supabase load failed:", e); }
   setupRealTimeListeners();
   const p = getCurrentProfile();
   document.getElementById("sbStudentName").textContent = p?.fullName || currentUser.name;
@@ -881,12 +900,10 @@ async function launchAdminApp() {
     return;
   }
   await bootstrapData();
-  // Load latest data from Firestore (sync from other users)
-  if (firestoreDb) {
-    try {
-      await loadAllDataFromFirestore();
-    } catch(e) { console.warn("Firestore load failed:", e); }
-  }
+  // Load latest data from Supabase (sync from other users)
+  try {
+    await loadAllDataFromSupabase();
+  } catch(e) { console.warn("Supabase load failed:", e); }
   setupRealTimeListeners();
   document.getElementById("adminApp").style.display = "block";
   startDateTime("adminTopbarDate");
@@ -1610,19 +1627,15 @@ async function submitFoundItem(cid, isAdmin) {
     itemsData.unshift(newItem);
     addAuditLog("item.logged.admin", { itemId: newItem.id, name: newItem.name });
     showToast("Item reported and added to the system successfully!", "success");
-    // Save to Firestore for cross-browser sync
-    if (firestoreDb) {
-      saveToFirestore("foundItems", newItem).catch(e => console.warn("Firestore save failed:", e));
-    }
+    // Save to Supabase for cross-browser sync
+    saveToSupabase("foundItems", newItem).catch(e => console.warn("Supabase save failed:", e));
   } else {
     pendingFoundReports.unshift(reportPayload);
     addAuditLog("found.report.submitted", { reportId: reportPayload.id, name: reportPayload.name });
     addNotification(`Found-item report submitted for "${reportPayload.name}".`, "info", currentUser?.email || null);
     showToast("Found-item report submitted. Waiting for admin approval.", "info");
-    // Save to Firestore for cross-browser sync
-    if (firestoreDb) {
-      saveToFirestore("pendingFoundReports", reportPayload).catch(e => console.warn("Firestore save failed:", e));
-    }
+    // Save to Supabase for cross-browser sync
+    saveToSupabase("pendingFoundReports", reportPayload).catch(e => console.warn("Supabase save failed:", e));
   }
   let persisted = await savePersisted();
   if (!persisted) {
@@ -1803,8 +1816,6 @@ function renderLostMatches() {
     for (const item of itemsData) {
       if (itemMatchesLostReport(item, lost)) {
         matches.push({ lost, item });
-      }
-    }
   }
   if (!matches.length) {
     box.innerHTML = '<div class="empty-state" style="padding:24px 12px;"><i class="bi bi-search"></i><p>No possible matches yet.</p></div>';
@@ -2338,10 +2349,9 @@ function approveFoundReport(id) {
   delete newItem.reportType;
   itemsData.unshift(newItem);
   savePersisted();
-  // Sync to Firestore for cross-browser sync
-  if (firestoreDb) {
-    saveToFirestore("foundItems", newItem).catch(e => console.warn("Firestore save failed:", e));
-    deleteFromFirestore("pendingFoundReports", String(r.id)).catch(e => console.warn("Firestore delete failed:", e));
+  // Sync to Supabase for cross-browser sync
+    saveToSupabase("foundItems", newItem).catch(e => console.warn("Supabase save failed:", e));
+    deleteFromSupabase("pendingFoundReports", String(r.id)).catch(e => console.warn("Supabase delete failed:", e));
   }
   renderAdminReports();
   renderItems();
@@ -2361,9 +2371,8 @@ function rejectFoundReport(id) {
   const target = pendingFoundReports.find((r) => Number(r.id) === Number(id));
   pendingFoundReports = pendingFoundReports.filter((r) => Number(r.id) !== Number(id));
   savePersisted();
-  // Sync to Firestore for cross-browser sync
-  if (firestoreDb && target) {
-    deleteFromFirestore("pendingFoundReports", String(target.id)).catch(e => console.warn("Firestore delete failed:", e));
+  // Sync to Supabase for cross-browser sync
+  deleteFromSupabase("pendingFoundReports", String(target.id)).catch(e => console.warn("Supabase delete failed:", e));
   }
   renderAdminReports();
   addAuditLog("report.found.rejected", { reportId: id, name: target?.name || "" });
@@ -3016,3 +3025,4 @@ function showToast(msg, type = "success") {
 }
 
 bootstrapData();
+
