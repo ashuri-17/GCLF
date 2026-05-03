@@ -711,6 +711,7 @@ function listenToSupabase(tableName, callback) {
 
 // ===================== SUPABASE DATA SYNC =====================
 let unsubscribers = []; // Store unsubscribe functions for listeners
+let lastDeleteTimestamp = 0; // Track last delete to prevent race condition with real-time sync
 
 async function loadAllDataFromSupabase() {
   try {
@@ -805,6 +806,12 @@ function setupRealTimeListeners() {
 
   // Listen to found items
   var unsub1 = listenToSupabase("founditems", function(data) {
+    // Skip update if we just deleted something (prevent race condition)
+    const timeSinceDelete = Date.now() - lastDeleteTimestamp;
+    if (timeSinceDelete < 3000) {
+      console.log('Skipping real-time update, recent delete detected (' + timeSinceDelete + 'ms ago)');
+      return;
+    }
     itemsData = data;
     if (typeof renderItems === "function") renderItems();
     if (typeof updateStudentStats === "function") updateStudentStats();
@@ -2759,6 +2766,8 @@ async function adminDeleteItem(id) {
   try {
     await deleteFromSupabase("founditems", idStr);
     console.log("Item deleted from Supabase successfully");
+    // Mark timestamp to prevent real-time sync from overwriting our deletion
+    lastDeleteTimestamp = Date.now();
   } catch (e) {
     console.error("Supabase delete failed:", e);
     showToast("Failed to delete from server: " + (e.message || "Unknown error"), "danger");
