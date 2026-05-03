@@ -2727,18 +2727,29 @@ async function adminDeleteItem(id) {
   if (!requirePermission("admin.items.delete")) return;
   if (!confirm("Are you sure you want to delete this item? This cannot be undone.")) return;
   const deleted = findItemById(id);
-  itemsData = itemsData.filter((i) => String(i.id) !== String(id));
-  // Force save to IndexedDB
-  await setToIndexedDB(STORAGE_KEY, JSON.parse(persistPayload())).then(() => {
-    console.log("Item deleted from IndexedDB");
-  }).catch(e => console.warn("IndexedDB delete failed:", e));
-  // Also delete from Supabase and WAIT for it
+  if (!deleted) {
+    showToast("Item not found.", "danger");
+    return;
+  }
+  
+  // First, try to delete from Supabase
   try {
     await deleteFromSupabase("founditems", String(id));
     console.log("Item deleted from Supabase successfully");
   } catch (e) {
     console.error("Supabase delete failed:", e);
+    showToast("Failed to delete from server: " + (e.message || "Unknown error"), "danger");
+    return; // Stop here - don't delete locally if server delete failed
   }
+  
+  // Only delete locally if Supabase delete succeeded
+  itemsData = itemsData.filter((i) => String(i.id) !== String(id));
+  
+  // Force save to IndexedDB
+  await setToIndexedDB(STORAGE_KEY, JSON.parse(persistPayload())).then(() => {
+    console.log("Item deleted from IndexedDB");
+  }).catch(e => console.warn("IndexedDB delete failed:", e));
+  
   await savePersisted();
   renderAdminItems();
   renderItems();
