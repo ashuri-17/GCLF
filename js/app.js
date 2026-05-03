@@ -664,17 +664,24 @@ async function updateInSupabase(tableName, item) {
 }
 
 async function deleteFromSupabase(tableName, docId) {
-  console.log('Deleting from Supabase:', tableName, 'id:', docId);
+  console.log('Deleting from Supabase:', tableName, 'id:', docId, 'type:', typeof docId);
   try {
+    // First check if the record exists
+    const { data: existing, error: checkError } = await sb.from(tableName).select('id').eq('id', docId).maybeSingle();
+    console.log('Check existing record in', tableName, ':', existing, 'error:', checkError);
+    
     const { data, error } = await sb.from(tableName).delete().eq('id', docId).select();
     if (error) {
       console.error('Supabase delete ERROR on ' + tableName + ':', error.message, error);
       throw error;
     }
-    console.log('Supabase delete SUCCESS on ' + tableName + ':', data);
+    console.log('Supabase delete SUCCESS on ' + tableName + ':', data, 'rows deleted:', data?.length || 0);
+    if (!data || data.length === 0) {
+      console.warn('No rows were deleted - ID may not exist:', docId);
+    }
     return data;
   } catch(e) {
-    console.error('Supabase delete EXCEPTION on ' + tableName + ':', e.message);
+    console.error('Supabase delete EXCEPTION on ' + tableName + ':', e.message, e);
     throw e;
   }
 }
