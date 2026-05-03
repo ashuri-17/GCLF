@@ -3041,6 +3041,21 @@ function closeOnOverlay(e, id) {
   if (e.target === document.getElementById(id)) closeModal(id);
 }
 
+function toggleMobileSidebar() {
+  const studentSidebar = document.getElementById("studentSidebar");
+  const adminSidebar = document.getElementById("adminSidebar");
+  const overlay = document.getElementById("sidebarOverlay");
+  
+  // Toggle the appropriate sidebar based on which app is visible
+  if (document.getElementById("mainApp").style.display !== "none") {
+    studentSidebar.classList.toggle("open");
+  } else if (document.getElementById("adminApp").style.display !== "none") {
+    adminSidebar.classList.toggle("open");
+  }
+  
+  overlay.classList.toggle("open");
+}
+
 function initSidebarToggle() {
   document.querySelectorAll(".topbar-hamburger").forEach((btn) => {
     if (btn.dataset.bound === "1") return;
