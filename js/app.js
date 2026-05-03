@@ -708,9 +708,13 @@ async function loadAllDataFromSupabase() {
     // Load audit logs and notifications
     auditLogs = await loadFromSupabase("auditlogs");
     notifications = await loadFromSupabase("notifications");
-    // Load system config
-    const { data: configData } = await sb.from("system_config").select('*').eq('id', 1).maybeSingle();
-    if (configData) systemConfig = configData;
+    // Load system config (ignore errors if table doesn't exist)
+    try {
+      const { data: configData, error: configError } = await sb.from("system_config").select('*').eq('id', 1).maybeSingle();
+      if (configData && !configError) systemConfig = configData;
+    } catch (e) {
+      console.warn("system_config table not available, using defaults");
+    }
     rebuildMyClaimsByEmail();
     return true;
   } catch (e) {
@@ -756,8 +760,12 @@ async function saveAllDataToSupabase() {
     saveToSupabase("studentprofiles", { ...studentProfiles[email], email })
     );
     await Promise.all(profileOps);
-    // Save system config
-    await sb.from("system_config").upsert({ id: 1, ...systemConfig });
+    // Save system config (ignore errors if table doesn't exist)
+    try {
+      await sb.from("system_config").upsert({ id: 1, ...systemConfig });
+    } catch (e) {
+      console.warn("system_config save failed, continuing...");
+    }
     return true;
   } catch (e) {
     console.error("Failed to save to Supabase:", e.message);
@@ -2679,6 +2687,8 @@ function adminDeleteItem(id) {
   setToIndexedDB(STORAGE_KEY, JSON.parse(persistPayload())).then(() => {
     console.log("Item deleted from IndexedDB");
   }).catch(e => console.warn("IndexedDB delete failed:", e));
+  // Also delete from Supabase
+  deleteFromSupabase("founditems", String(id)).catch(e => console.warn("Supabase delete failed:", e));
   savePersisted();
   renderAdminItems();
   renderItems();
