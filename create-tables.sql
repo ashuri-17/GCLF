@@ -51,13 +51,15 @@ CREATE TABLE IF NOT EXISTS public.studentprofiles (
 CREATE TABLE IF NOT EXISTS public.auditlogs (
   id TEXT PRIMARY KEY,
   data JSONB,
-  created_at TIMESTAMPTZ DEFAULT now()
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS public.notifications (
   id TEXT PRIMARY KEY,
   data JSONB,
-  created_at TIMESTAMPTZ DEFAULT now()
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS public.system_config (

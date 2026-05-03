@@ -6,6 +6,13 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const { createClient } = supabase; // supabase global from CDN
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY); // main client for auth + db
 
+// Quick connectivity test
+sb.from('founditems').select('id').limit(1)
+  .then(({ data, error }) => {
+    if (error) console.error('Supabase connection error:', error.message);
+    else console.log('Supabase connected OK');
+  });
+
 const STORAGE_KEY = "gclf_student_portal_v2";
 
 // ===================== LOCAL ACCOUNTS (Fallback if Supabase Auth not configured) =====================
