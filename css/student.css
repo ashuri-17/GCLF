@@ -405,7 +405,7 @@ img { max-width: 100%; height: auto; }
   font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
 }
 .s-badge.unclaimed { background: #fff3cd; color: #856404; }
-.s-badge.claimed { background: #d1e7dd; color: #0a3622; }
+.s-badge.claimed { background: #0d6efd; color: #fff; }
 .s-badge.pending { background: #cfe2ff; color: #084298; }
 .s-badge.rejected { background: #f8d7da; color: #842029; }
 .s-badge.approved { background: #cce5d8; color: #0d4427; }

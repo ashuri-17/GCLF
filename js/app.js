@@ -742,11 +742,20 @@ async function loadAllDataFromSupabase() {
       loadFromSupabase("pendingfoundreports"),
       loadFromSupabase("lostitemleads")
     ]);
-    // Load student profiles
+    // Load student profiles - extract only profile fields, not DB metadata
     const { data: profilesData } = await sb.from("studentprofiles").select('*');
     studentProfiles = {};
     (profilesData || []).forEach(profile => {
-      studentProfiles[profile.email || profile.id] = profile;
+      const email = profile.email || profile.id;
+      if (email) {
+        // Only extract the actual profile fields, ignore DB metadata like created_at
+        studentProfiles[email] = {
+          fullName: profile.fullName || profile.data?.fullName || "",
+          studentId: profile.studentId || profile.data?.studentId || "",
+          courseYear: profile.courseYear || profile.data?.courseYear || "",
+          contactNumber: profile.contactNumber || profile.data?.contactNumber || ""
+        };
+      }
     });
     // Load audit logs and notifications
     auditLogs = await loadFromSupabase("auditlogs");
