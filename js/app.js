@@ -854,6 +854,33 @@ function setupRealTimeListeners() {
     if (typeof renderAdminClaims === "function") renderAdminClaims();
   });
   unsubscribers.push(unsub3);
+
+  // Listen to lost item leads (for real-time messaging when reports are accepted)
+  var unsub4 = listenToSupabase("lostitemleads", function(data) {
+    lostItemLeads = data;
+    if (typeof renderMyFoundLeads === "function") renderMyFoundLeads();
+    if (typeof renderLostMatches === "function") renderLostMatches();
+    if (typeof renderDashboardMixed === "function") renderDashboardMixed();
+  });
+  unsubscribers.push(unsub4);
+
+  // Listen to notifications (for real-time alerts when leads are accepted)
+  var unsub5 = listenToSupabase("notifications", function(data) {
+    notifications = data;
+    if (typeof renderNotificationsList === "function") renderNotificationsList();
+  });
+  unsubscribers.push(unsub5);
+
+  // Listen to lost reports (for real-time status updates)
+  var unsub6 = listenToSupabase("lostreports", function(data) {
+    lostReports = data;
+    if (typeof renderLostReportsList === "function") renderLostReportsList();
+    if (typeof renderPublicLostItems === "function") renderPublicLostItems();
+    if (typeof renderDashboardMixed === "function") renderDashboardMixed();
+    if (typeof renderLostMatches === "function") renderLostMatches();
+    if (typeof renderAdminReports === "function") renderAdminReports();
+  });
+  unsubscribers.push(unsub6);
 }
 
 async function doLogin() {
