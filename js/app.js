@@ -1298,10 +1298,23 @@ async function saveStudentProfile() {
     return;
   }
   err.style.display = "none";
-  studentProfiles[currentUser.email] = { fullName, studentId, courseYear, contactNumber };
+  const profileData = { fullName, studentId, courseYear, contactNumber };
+  studentProfiles[currentUser.email] = profileData;
   document.getElementById("sbStudentName").textContent = fullName;
   document.getElementById("sbStudentRole").textContent = courseYear;
   await savePersisted();
+  
+  // Save to Supabase for cross-device persistence
+  try {
+    await saveToSupabase("studentprofiles", { 
+      ...profileData, 
+      email: currentUser.email,
+      id: currentUser.email  // Use email as ID for profiles
+    });
+  } catch (e) {
+    console.warn("Failed to save profile to Supabase:", e);
+  }
+  
   showToast("Student profile saved.", "success");
   // Exit edit mode and show view
   window.profileEditMode = false;
@@ -2895,8 +2908,9 @@ function renderAdminItems() {
   const st = document.getElementById("adminFilterStat")?.value || "";
   const filtered = itemsData.filter((item) => {
     const ms = item.name.toLowerCase().includes(q) || item.location.toLowerCase().includes(q);
-    // By default, hide Claimed items from the list (they can still be seen via status filter)
-    const statusMatch = !st ? item.status !== "Claimed" : item.status === st;
+    // If no status filter selected, show all items (including claimed)
+    // If status filter selected, only show items matching that status
+    const statusMatch = !st || item.status === st;
     return ms && statusMatch;
   });
   const tbody = document.getElementById("adminItemsTbody");
@@ -2934,6 +2948,23 @@ function renderAdminItems() {
     </tr>`
     )
     .join("");
+}
+
+// Filter admin items by status when clicking stat cards
+function filterAdminItemsByStatus(status) {
+  // Navigate to manage items page if not already there
+  const manageItemsSection = document.getElementById("a-manageItems");
+  if (!manageItemsSection?.classList.contains("active")) {
+    const navEl = document.querySelector('#adminSidebar .sb-item[data-page="manageItems"]');
+    if (navEl) adminNav("manageItems", navEl);
+  }
+  
+  // Set the filter dropdown
+  const filterSelect = document.getElementById("adminFilterStat");
+  if (filterSelect) {
+    filterSelect.value = status || "";
+    renderAdminItems();
+  }
 }
 
 async function adminDeleteItem(id) {
