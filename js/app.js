@@ -2517,8 +2517,8 @@ function renderAdminLostRecoveries() {
         </div>
         <div class="admin-actions">
           <button class="btn-sm-action view" onclick="viewClaimDetails(${c.id})"><i class="bi bi-eye"></i> View</button>
-          ${canAct ? `<button class="btn-sm-action approve" onclick="approveLostRecoveryReport(${c.relatedLostReportId})"><i class="bi bi-check-lg"></i> Accept</button>
-          <button class="btn-sm-action reject" onclick="rejectLostRecoveryReport(${c.relatedLostReportId})"><i class="bi bi-x-lg"></i> Reject</button>` : ""}
+          ${canAct ? `<button class="btn-sm-action approve" onclick="viewClaimDetails(${c.id})"><i class="bi bi-check-lg"></i> Approve</button>
+          <button class="btn-sm-action reject" onclick="rejectClaim(${c.id})"><i class="bi bi-x-lg"></i> Reject</button>` : ""}
         </div>
       </div>`;
     })
