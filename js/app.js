@@ -861,10 +861,17 @@ function setupRealTimeListeners() {
 
   // Listen to lost item leads (for real-time messaging when reports are accepted)
   var unsub4 = listenToSupabase("lostitemleads", function(data) {
+    // Check for new messages before updating data
+    const oldLeads = lostItemLeads;
     lostItemLeads = data;
+    
+    // Refresh UI components
     if (typeof renderMyFoundLeads === "function") renderMyFoundLeads();
     if (typeof renderLostMatches === "function") renderLostMatches();
     if (typeof renderDashboardMixed === "function") renderDashboardMixed();
+    
+    // Real-time chat update: refresh message displays for open chats
+    if (typeof refreshLeadMessages === "function") refreshLeadMessages(oldLeads, data);
   });
   unsubscribers.push(unsub4);
 
@@ -2358,6 +2365,41 @@ function sendLeadMessage(leadId) {
   allInputs.forEach((inp) => { inp.value = ""; });
 }
 
+// Real-time chat message refresh - called when lostItemLeads update via Supabase
+function refreshLeadMessages(oldLeads, newLeads) {
+  if (!currentUser?.email) return;
+  
+  // Find leads that the current user is involved in and have new messages
+  newLeads.forEach(newLead => {
+    const oldLead = oldLeads.find(l => Number(l.id) === Number(newLead.id));
+    if (!oldLead) return;
+    
+    // Check if this lead involves the current user
+    const isInvolved = newLead.finderEmail === currentUser.email || newLead.reporterEmail === currentUser.email;
+    if (!isInvolved) return;
+    
+    // Check if there are new messages
+    const oldMsgCount = oldLead.messages?.length || 0;
+    const newMsgCount = newLead.messages?.length || 0;
+    
+    if (newMsgCount > oldMsgCount) {
+      // New messages detected - update the chat display
+      const msgContainer = document.querySelector(`#lead_msgs_${newLead.id}`);
+      if (msgContainer && newLead.messages) {
+        msgContainer.innerHTML = newLead.messages
+          .map(
+            (m) =>
+              `<div style="font-size:0.8rem;margin-bottom:6px;"><strong>${m.from === currentUser.email ? "You" : htmlEsc(m.from === newLead.finderEmail ? newLead.finderName : (lostReports.find(r => r.id === newLead.lostReportId)?.reporterName || "Other"))}:</strong> ${htmlEsc(m.text)} <span style="color:#aaa;">(${m.at})</span></div>`
+          )
+          .join("");
+        
+        // Auto-scroll to bottom of chat
+        msgContainer.scrollTop = msgContainer.scrollHeight;
+      }
+    }
+  });
+}
+
 function renderAdminReports() {
   const foundWrap = document.getElementById("adminFoundReportsList");
   const lostWrap = document.getElementById("adminLostReportsList");
@@ -3225,16 +3267,24 @@ function toggleMobileSidebar() {
   const studentSidebar = document.getElementById("studentSidebar");
   const adminSidebar = document.getElementById("adminSidebar");
   const overlay = document.getElementById("sidebarOverlay");
+  const mainApp = document.getElementById("mainApp");
+  const adminApp = document.getElementById("adminApp");
+
+  // Check computed style to properly detect visibility
+  const mainAppVisible = mainApp && (window.getComputedStyle(mainApp).display !== "none");
+  const adminAppVisible = adminApp && (window.getComputedStyle(adminApp).display !== "none");
 
   // Toggle the appropriate sidebar based on which app is visible
-  if (studentSidebar && document.getElementById("mainApp").style.display !== "none") {
+  if (studentSidebar && mainAppVisible) {
     studentSidebar.classList.toggle("open");
-  } else if (adminSidebar && document.getElementById("adminApp").style.display !== "none") {
+    if (overlay) overlay.classList.toggle("open");
+  } else if (adminSidebar && adminAppVisible) {
     adminSidebar.classList.toggle("open");
-  }
-
-  if (overlay) {
-    overlay.classList.toggle("open");
+    if (overlay) overlay.classList.toggle("open");
+  } else if (adminSidebar && !mainAppVisible) {
+    // Fallback: if mainApp is not visible, assume admin is active
+    adminSidebar.classList.toggle("open");
+    if (overlay) overlay.classList.toggle("open");
   }
 }
 
@@ -3264,6 +3314,43 @@ function showToast(msg, type = "success") {
 }
 
 bootstrapData();
+
+// Check for existing session on page load
+async function initAuth() {
+  try {
+    const { data, error } = await sb.auth.getSession();
+    if (error) throw error;
+    
+    if (data?.session?.user) {
+      const user = data.session.user;
+      const metadata = user.user_metadata || {};
+      
+      currentUser = {
+        email: user.email,
+        role: metadata.role || "student",
+        name: metadata.displayName || metadata.name || user.email.split('@')[0],
+        dept: metadata.dept || "Gordon College"
+      };
+      
+      document.getElementById("loginPage").style.display = "none";
+      syncMyClaims();
+      
+      if (currentUser.role === "admin") await launchAdminApp();
+      else await launchStudentApp();
+      
+      console.log("Session restored for:", currentUser.email);
+    }
+  } catch (e) {
+    console.log("No existing session found or error:", e?.message);
+  }
+}
+
+// Initialize auth check when DOM is ready
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initAuth);
+} else {
+  initAuth();
+}
 
 
 
