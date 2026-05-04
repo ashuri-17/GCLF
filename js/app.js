@@ -1040,6 +1040,17 @@ async function launchAdminApp() {
 async function doLogout() {
   if (currentUser?.email) myClaimsByEmail[currentUser.email] = [...myClaims];
   await savePersisted();
+  
+  // Clear saved page state so refresh after logout stays on login
+  try {
+    localStorage.removeItem('gclf_lastPage');
+  } catch (e) { console.warn("Failed to clear page state:", e); }
+  
+  // Sign out from Supabase to clear session
+  try {
+    await sb.auth.signOut();
+  } catch (e) { console.warn("Supabase signOut failed:", e); }
+  
   currentUser = null;
   myClaims = [];
   document.getElementById("mainApp").style.display = "none";
@@ -1117,6 +1128,7 @@ function studentNav(page, el) {
   document.querySelectorAll("#studentSidebar .sb-item").forEach((i) => i.classList.remove("active"));
   if (el) el.classList.add("active");
   document.querySelectorAll("#mainApp .page-section").forEach((s) => s.classList.remove("active"));
+  saveCurrentPage(page, "student");
   const sec = document.getElementById("s-" + page);
   if (sec) sec.classList.add("active");
   if (page === "dashboard") {
@@ -1147,6 +1159,7 @@ function adminNav(page, el) {
   document.querySelectorAll("#adminSidebar .sb-item").forEach((i) => i.classList.remove("active"));
   if (el) el.classList.add("active");
   document.querySelectorAll("#adminApp .page-section").forEach((s) => s.classList.remove("active"));
+  saveCurrentPage(page, "admin");
   const sec = document.getElementById("a-" + page);
   if (sec) sec.classList.add("active");
   if (page === "overview") {
@@ -2882,7 +2895,9 @@ function renderAdminItems() {
   const st = document.getElementById("adminFilterStat")?.value || "";
   const filtered = itemsData.filter((item) => {
     const ms = item.name.toLowerCase().includes(q) || item.location.toLowerCase().includes(q);
-    return ms && (!st || item.status === st);
+    // By default, hide Claimed items from the list (they can still be seen via status filter)
+    const statusMatch = !st ? item.status !== "Claimed" : item.status === st;
+    return ms && statusMatch;
   });
   const tbody = document.getElementById("adminItemsTbody");
   if (!filtered.length) {
@@ -3293,29 +3308,11 @@ function rejectClaim(cid) {
   showToast(`Claim REJECTED for "${c.itemName}".`, "danger");
 }
 
-// Quick approve from table - opens modal for regular claims, direct approve for lost-recovery
+// Quick approve from table - always opens view modal so admin can add notes
 function quickApprovePrompt(cid) {
-  const c = allClaims.find((x) => String(x.id) === String(cid));
-  if (!c) {
-    console.error("quickApprovePrompt: Claim not found! CID:", cid);
-    showToast("Error: Claim not found", "danger");
-    return;
-  }
-  
-  // For lost-recovery claims, we can approve directly or show simplified modal
-  if (c.sourceType === "lost-recovery") {
-    // For lost recovery, we can approve with just an optional note
-    const note = prompt("Add optional admin note for this lost item validation:");
-    if (note === null) return; // Cancelled
-    
-    if (note.trim()) {
-      c.adminNote = note.trim();
-    }
-    approveClaim(cid);
-  } else {
-    // For regular claims, open the full view modal to enter Where/When details
-    viewClaimDetails(cid);
-  }
+  // Always open view modal for both regular claims and lost-recovery
+  // This allows admin to review details and add notes before approving
+  viewClaimDetails(cid);
 }
 
 function openModal(id) {
@@ -3402,13 +3399,54 @@ async function initAuth() {
       document.getElementById("loginPage").style.display = "none";
       syncMyClaims();
       
+      // Load data from Supabase (including profiles) before launching app
+      try {
+        await loadAllDataFromSupabase();
+      } catch(e) { console.warn("Supabase load failed on init:", e); }
+      
       if (currentUser.role === "admin") await launchAdminApp();
       else await launchStudentApp();
+      
+      // Restore last visited page after apps are launched
+      restoreLastPage();
       
       console.log("Session restored for:", currentUser.email);
     }
   } catch (e) {
     console.log("No existing session found or error:", e?.message);
+  }
+}
+
+// Save current page to localStorage
+function saveCurrentPage(page, role) {
+  try {
+    localStorage.setItem('gclf_lastPage', JSON.stringify({ page, role, timestamp: Date.now() }));
+  } catch (e) {
+    console.warn("Failed to save page state:", e);
+  }
+}
+
+// Restore last visited page from localStorage
+function restoreLastPage() {
+  try {
+    const saved = localStorage.getItem('gclf_lastPage');
+    if (!saved) return;
+    
+    const { page, role } = JSON.parse(saved);
+    if (role !== currentUser?.role) return; // Only restore if same role
+    
+    // Navigate to saved page after a short delay to ensure DOM is ready
+    setTimeout(() => {
+      if (role === "admin") {
+        const navEl = document.querySelector(`#adminSidebar .sb-item[data-page="${page}"]`);
+        if (navEl) adminNav(page, navEl);
+      } else {
+        const navEl = document.querySelector(`#studentSidebar .sb-item[data-page="${page}"]`);
+        if (navEl) studentNav(page, navEl);
+      }
+    }, 100);
+  } catch (e) {
+    console.warn("Failed to restore page state:", e);
   }
 }
 
