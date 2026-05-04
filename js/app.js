@@ -1370,6 +1370,7 @@ function renderDashboardMixed() {
     subtitle: `${sanitizeText(x.category)} • ${sanitizeText(x.location)}`,
     image: x.image,
     emoji: x.emoji,
+    status: x.status,
     open: `openItemModal(${x.id})`
   }));
   const lostRows = lostReports
@@ -1409,7 +1410,9 @@ function renderDashboardMixed() {
             <div class="item-card-badges">
               ${
                 r.type === "Found"
-                  ? `<span class="s-badge item-kind--found">Found</span>`
+                  ? r.status === "Claimed"
+                    ? `<span class="s-badge claimed">Claimed</span>`
+                    : `<span class="s-badge item-kind--found">Found</span>`
                   : r.own
                     ? `<span class="s-badge item-kind--lost">Lost</span><span class="s-badge item-kind--yours">Yours</span>`
                     : `<span class="s-badge item-kind--lost">Lost</span>`
