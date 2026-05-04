@@ -3091,8 +3091,18 @@ function renderAdminClaims() {
 }
 
 function viewClaimDetails(cid) {
-  const c = allClaims.find((x) => x.id === cid);
-  if (!c) return;
+  console.log("viewClaimDetails called with cid:", cid, "Type:", typeof cid);
+  console.log("allClaims count:", allClaims?.length);
+  console.log("allClaims sample IDs:", allClaims?.slice(0, 3).map(x => ({id: x.id, type: typeof x.id})));
+  
+  // Normalize ID comparison - handle both string and number
+  const c = allClaims.find((x) => String(x.id) === String(cid));
+  if (!c) {
+    console.error("Claim not found! CID:", cid);
+    showToast("Error: Claim not found", "danger");
+    return;
+  }
+  console.log("Found claim:", c.id, c.itemName, c.status);
   const canAct = c.status === "Pending Review";
   const isLostRecovery = c.sourceType === "lost-recovery";
   const relatedLost = isLostRecovery ? lostReports.find((r) => Number(r.id) === Number(c.relatedLostReportId)) : null;
@@ -3138,7 +3148,7 @@ function viewClaimDetails(cid) {
       <textarea class="f-input" id="admin_claim_note_${c.id}" rows="2" placeholder="${isLostRecovery ? "Validation notes for this lost item recovery..." : "Bring school ID and claim stub."}"></textarea>
       <div class="f-err" id="admin_claim_err_${c.id}"></div>
       <div class="d-flex gap-2 mt-2">
-        <button class="btn-gc success" style="flex:1;" onclick="approveClaim(${c.id});">
+        <button class="btn-gc success" style="flex:1;" onclick="approveClaim(${c.id});closeModal('viewClaimModal')">
           <i class="bi bi-check-circle-fill"></i> Approve Claim
         </button>
         <button class="btn-gc danger" style="flex:1;" onclick="rejectClaim(${c.id});closeModal('viewClaimModal')">
@@ -3157,9 +3167,16 @@ function viewClaimDetails(cid) {
 }
 
 function approveClaim(cid) {
+  console.log("approveClaim called with cid:", cid, "Type:", typeof cid);
   if (!requirePermission("admin.claims.review")) return;
-  const c = allClaims.find((x) => x.id === cid);
-  if (!c) return;
+  // Normalize ID comparison - handle both string and number
+  const c = allClaims.find((x) => String(x.id) === String(cid));
+  if (!c) {
+    console.error("approveClaim: Claim not found! CID:", cid);
+    showToast("Error: Claim not found", "danger");
+    return;
+  }
+  console.log("approveClaim: Found claim", c.id, c.itemName);
   const whereEl = document.getElementById(`admin_claim_where_${cid}`);
   const whenEl = document.getElementById(`admin_claim_when_${cid}`);
   const noteEl = document.getElementById(`admin_claim_note_${cid}`);
@@ -3177,14 +3194,14 @@ function approveClaim(cid) {
   c.claimWhere = claimWhere;
   c.claimWhen = claimWhen;
   c.adminNote = adminNote;
-  const mc = myClaimsByEmail[c.claimantEmail]?.find((x) => x.id === cid);
+  const mc = myClaimsByEmail[c.claimantEmail]?.find((x) => String(x.id) === String(cid));
   if (mc) {
     mc.status = "Approved";
     mc.claimWhere = claimWhere;
     mc.claimWhen = claimWhen;
     mc.adminNote = adminNote;
   }
-  const localMc = myClaims.find((x) => x.id === cid);
+  const localMc = myClaims.find((x) => String(x.id) === String(cid));
   if (localMc) {
     localMc.status = "Approved";
     localMc.claimWhere = claimWhere;
@@ -3228,13 +3245,18 @@ function approveClaim(cid) {
 }
 
 function rejectClaim(cid) {
+  console.log("rejectClaim called with cid:", cid, "Type:", typeof cid);
   if (!requirePermission("admin.claims.review")) return;
-  const c = allClaims.find((x) => x.id === cid);
-  if (!c) return;
+  const c = allClaims.find((x) => String(x.id) === String(cid));
+  if (!c) {
+    console.error("rejectClaim: Claim not found! CID:", cid);
+    showToast("Error: Claim not found", "danger");
+    return;
+  }
   c.status = "Rejected";
-  const mc = myClaimsByEmail[c.claimantEmail]?.find((x) => x.id === cid);
+  const mc = myClaimsByEmail[c.claimantEmail]?.find((x) => String(x.id) === String(cid));
   if (mc) mc.status = "Rejected";
-  const localMc = myClaims.find((x) => x.id === cid);
+  const localMc = myClaims.find((x) => String(x.id) === String(cid));
   if (localMc) localMc.status = "Rejected";
   const item = findItemById(c.itemId);
   if (item && item.status === "Pending") item.status = "Unclaimed";
@@ -3273,8 +3295,12 @@ function rejectClaim(cid) {
 
 // Quick approve from table - opens modal for regular claims, direct approve for lost-recovery
 function quickApprovePrompt(cid) {
-  const c = allClaims.find((x) => x.id === cid);
-  if (!c) return;
+  const c = allClaims.find((x) => String(x.id) === String(cid));
+  if (!c) {
+    console.error("quickApprovePrompt: Claim not found! CID:", cid);
+    showToast("Error: Claim not found", "danger");
+    return;
+  }
   
   // For lost-recovery claims, we can approve directly or show simplified modal
   if (c.sourceType === "lost-recovery") {
