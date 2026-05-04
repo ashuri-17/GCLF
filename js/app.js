@@ -3081,7 +3081,7 @@ function renderAdminClaims() {
         <td>
           <div class="admin-actions">
             <button class="btn-sm-action view" onclick="viewClaimDetails(${c.id})"><i class="bi bi-eye"></i> View</button>
-            ${canAct ? `<button class="btn-sm-action approve" onclick="viewClaimDetails(${c.id})"><i class="bi bi-check-lg"></i> Approve</button>
+            ${canAct ? `<button class="btn-sm-action approve" onclick="quickApprovePrompt(${c.id})"><i class="bi bi-check-lg"></i> Approve</button>
             <button class="btn-sm-action reject" onclick="rejectClaim(${c.id})"><i class="bi bi-x-lg"></i> Reject</button>` : ""}
           </div>
         </td>
@@ -3134,8 +3134,8 @@ function viewClaimDetails(cid) {
       <input class="f-input" id="admin_claim_where_${c.id}" placeholder="e.g. OSA Office, Main Building"/>
       <label class="f-label">When to claim *</label>
       <input class="f-input" id="admin_claim_when_${c.id}" type="datetime-local"/>`}
-      ${isLostRecovery ? "" : `<label class="f-label">Additional notes</label>
-      <textarea class="f-input" id="admin_claim_note_${c.id}" rows="2" placeholder="Bring school ID and claim stub."></textarea>`}
+      <label class="f-label">Admin Note ${isLostRecovery ? "" : "(optional)"}</label>
+      <textarea class="f-input" id="admin_claim_note_${c.id}" rows="2" placeholder="${isLostRecovery ? "Validation notes for this lost item recovery..." : "Bring school ID and claim stub."}"></textarea>
       <div class="f-err" id="admin_claim_err_${c.id}"></div>
       <div class="d-flex gap-2 mt-2">
         <button class="btn-gc success" style="flex:1;" onclick="approveClaim(${c.id});">
@@ -3269,6 +3269,27 @@ function rejectClaim(cid) {
   addAuditLog("claim.rejected", { claimId: cid, itemId: c.itemId, claimantEmail: c.claimantEmail });
   addNotification(`Your claim for "${c.itemName}" was rejected.`, "danger", c.claimantEmail);
   showToast(`Claim REJECTED for "${c.itemName}".`, "danger");
+}
+
+// Quick approve from table - opens modal for regular claims, direct approve for lost-recovery
+function quickApprovePrompt(cid) {
+  const c = allClaims.find((x) => x.id === cid);
+  if (!c) return;
+  
+  // For lost-recovery claims, we can approve directly or show simplified modal
+  if (c.sourceType === "lost-recovery") {
+    // For lost recovery, we can approve with just an optional note
+    const note = prompt("Add optional admin note for this lost item validation:");
+    if (note === null) return; // Cancelled
+    
+    if (note.trim()) {
+      c.adminNote = note.trim();
+    }
+    approveClaim(cid);
+  } else {
+    // For regular claims, open the full view modal to enter Where/When details
+    viewClaimDetails(cid);
+  }
 }
 
 function openModal(id) {
