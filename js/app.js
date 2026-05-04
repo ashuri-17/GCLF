@@ -1080,17 +1080,37 @@ function startDateTime(elId) {
   function update() {
     const el = document.getElementById(elId);
     if (!el) return;
-    el.textContent = new Date().toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit"
-    });
+    
+    // Detect mobile screen for shorter date format
+    const isMobile = window.innerWidth <= 576;
+    const now = new Date();
+    
+    if (isMobile) {
+      // Short format for mobile: "Mon, Jan 1, 2:30 PM"
+      el.textContent = now.toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit"
+      });
+    } else {
+      // Full format for desktop
+      el.textContent = now.toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    }
   }
   update();
   setInterval(update, 1000);
+  
+  // Update format when window resizes
+  window.addEventListener('resize', update);
 }
 
 function studentNav(page, el) {

@@ -927,6 +927,36 @@ select.f-input {
   .topbar {
     left: 0;
     padding: 0 12px 0 60px;
+    height: 52px;
+  }
+  
+  .topbar-title {
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+  }
+  
+  .topbar-right {
+    gap: 8px;
+  }
+  
+  .topbar-datetime {
+    font-size: 0.75rem;
+    gap: 4px;
+  }
+  
+  .topbar-datetime span {
+    max-width: 80px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .topbar-badge {
+    font-size: 0.65rem;
+    padding: 2px 8px;
   }
   
   .main {
