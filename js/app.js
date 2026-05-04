@@ -116,28 +116,32 @@ function getConfiguredCategories() {
 }
 
 function addAuditLog(action, details = {}) {
-  auditLogs.unshift({
-    id: Date.now() + Math.floor(Math.random() * 1000),
+  const entry = {
+    id: Date.now().toString() + Math.floor(Math.random() * 1000).toString(),
     at: new Date().toLocaleString(),
     actorEmail: currentUser?.email || "system",
     actorRole: inferRoleFromUser(currentUser),
     action,
     details
-  });
+  };
+  auditLogs.unshift(entry);
   if (auditLogs.length > 600) auditLogs.splice(600);
+  saveToSupabase("auditlogs", entry).catch(e => console.warn("Supabase save failed:", e));
 }
 
 function addNotification(message, type = "info", targetEmail = null) {
   if (!systemConfig?.notificationsEnabled) return;
-  notifications.unshift({
-    id: Date.now() + Math.floor(Math.random() * 1000),
+  const entry = {
+    id: Date.now().toString() + Math.floor(Math.random() * 1000).toString(),
     message: String(message || ""),
     type,
     targetEmail,
     createdAt: new Date().toLocaleString(),
     readBy: []
-  });
+  };
+  notifications.unshift(entry);
   if (notifications.length > 800) notifications.splice(800);
+  saveToSupabase("notifications", entry).catch(e => console.warn("Supabase save failed:", e));
 }
 
 // ===================== INDEXEDDB STORAGE (50MB+ FREE) =====================
@@ -527,7 +531,7 @@ function ensureLostRecoveryClaim(report, lead) {
   );
   if (existing) return existing;
   const claim = {
-    id: Date.now(),
+    id: Date.now().toString(),
     itemId: null,
     itemName: report.name,
     itemEmoji: "🔎",
@@ -628,7 +632,7 @@ async function saveToSupabase(tableName, item) {
   try {
     const now = new Date().toISOString();
     const isStudentProfile = tableName === 'studentprofiles';
-    const docId = item.id || Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    const docId = String(item.id || Date.now().toString() + Math.random().toString(36).substr(2, 9));
     let record;
     if (isStudentProfile) {
       record = {
@@ -1539,7 +1543,7 @@ async function submitClaim(id) {
   }
   const item = findItemById(id);
   const claimEntry = {
-    id: Date.now(),
+    id: Date.now().toString(),
     itemId: id,
     itemName: item.name,
     itemEmoji: item.emoji,
@@ -1588,6 +1592,9 @@ async function submitClaim(id) {
   renderAdminItems();
   renderAdminClaims();
   closeModal("itemModal");
+  // Sync to Supabase
+  saveToSupabase("claims", claimEntry).catch(e => console.warn("Supabase save failed:", e));
+  if (item && item.status === "Pending") saveToSupabase("founditems", item).catch(e => console.warn("Supabase save failed:", e));
   addAuditLog("claim.submitted", { itemId: id, itemName: item?.name || "" });
   addNotification(`Claim submitted for "${item?.name || "item"}".`, "info", currentUser.email);
   showToast("Claim request submitted! We will review your request.", "success");
@@ -1716,7 +1723,7 @@ async function submitFoundItem(cid, isAdmin) {
   }
   errEl.style.display = "none";
   const reportPayload = {
-    id: Date.now(),
+    id: Date.now().toString(),
     name,
     category: cat,
     location: loc,
@@ -1853,7 +1860,7 @@ async function submitLostReport() {
   }
   err.style.display = "none";
   const entry = {
-    id: Date.now(),
+    id: Date.now().toString(),
     reporterEmail: currentUser.email,
     reporterName: getCurrentProfile()?.fullName || currentUser.name,
     name: get("lost_name"),
@@ -1883,6 +1890,8 @@ async function submitLostReport() {
     err.textContent = "Could not save report locally. Please clear old data or use a smaller image.";
     return;
   }
+  // Also save to Supabase so it reflects for other users
+  await saveToSupabase("lostreports", entry);
   buildLostReportForm();
   renderLostReportsList();
   renderLostMatches();
@@ -2172,7 +2181,7 @@ async function submitFoundYourItem(lostReportId) {
     return;
   }
   lostItemLeads.unshift({
-    id: Date.now(),
+    id: Date.now().toString(),
     lostReportId: report.id,
     itemName: report.name,
     reporterEmail: report.reporterEmail,
@@ -2199,6 +2208,8 @@ async function submitFoundYourItem(lostReportId) {
     err.textContent = "Could not save response locally. Please clear old data or use a smaller image.";
     return;
   }
+  // Also save to Supabase so it reflects for the reporter
+  await saveToSupabase("lostitemleads", lostItemLeads[0]);
   renderMyFoundLeads();
   renderLostReportsList();
   closeModal("foundYourItemModal");
@@ -2227,6 +2238,14 @@ function acceptLostLead(leadId) {
     }
   });
   savePersisted();
+  // Sync changed items to Supabase
+  saveToSupabase("lostitemleads", lead).catch(e => console.warn("Supabase save failed:", e));
+  saveToSupabase("lostreports", report).catch(e => console.warn("Supabase save failed:", e));
+  lostItemLeads.forEach((x) => {
+    if (x.status === "Rejected" && Number(x.lostReportId) === Number(lead.lostReportId)) {
+      saveToSupabase("lostitemleads", x).catch(e => console.warn("Supabase save failed:", e));
+    }
+  });
   renderMyFoundLeads();
   renderLostReportsList();
   renderPublicLostItems();
@@ -2254,6 +2273,8 @@ function markLostReportClaimed(lostReportId) {
   const pendingValidation = ensureLostRecoveryClaim(report, acceptedLead);
   report.status = "Pending Validation";
   savePersisted();
+  saveToSupabase("lostreports", report).catch(e => console.warn("Supabase save failed:", e));
+  if (pendingValidation) saveToSupabase("claims", pendingValidation).catch(e => console.warn("Supabase save failed:", e));
   renderMyFoundLeads();
   renderLostReportsList();
   renderPublicLostItems();
@@ -2289,6 +2310,8 @@ function rejectLostLead(leadId) {
     if (!hasAccepted && !hasOtherPending) report.status = "Approved";
   }
   savePersisted();
+  saveToSupabase("lostitemleads", lead).catch(e => console.warn("Supabase save failed:", e));
+  if (report) saveToSupabase("lostreports", report).catch(e => console.warn("Supabase save failed:", e));
   renderMyFoundLeads();
   renderLostReportsList();
   renderPublicLostItems();
@@ -2316,6 +2339,7 @@ function sendLeadMessage(leadId) {
   lead.messages = lead.messages || [];
   lead.messages.push({ from: currentUser.email, text, at: new Date().toLocaleString() });
   savePersisted();
+  saveToSupabase("lostitemleads", lead).catch(e => console.warn("Supabase save failed:", e));
   // Re-render the message list inline instead of rebuilding the entire DOM
   // to avoid losing focus/input state
   const wraps = [document.getElementById("myFoundLeadsList")].filter(Boolean);
@@ -2520,6 +2544,7 @@ function approveLostReport(id) {
   if (!r) return;
   r.status = "Approved";
   savePersisted();
+  saveToSupabase("lostreports", r).catch(e => console.warn("Supabase save failed:", e));
   renderAdminReports();
   renderLostReportsList();
   renderLostMatches();
@@ -2534,6 +2559,7 @@ function rejectLostReport(id) {
   if (!r) return;
   r.status = "Rejected";
   savePersisted();
+  saveToSupabase("lostreports", r).catch(e => console.warn("Supabase save failed:", e));
   renderAdminReports();
   renderLostReportsList();
   renderLostMatches();
@@ -2948,6 +2974,7 @@ function saveEditItem(id) {
   item.identifiers = document.getElementById("ei_idents").value.split(",").map((s) => s.trim()).filter(Boolean);
   item.emoji = emojiFor(item.category);
   savePersisted();
+  saveToSupabase("founditems", item).catch(e => console.warn("Supabase save failed:", e));
   renderAdminItems();
   renderItems();
   renderRecentGrid();
@@ -3111,6 +3138,15 @@ function approveClaim(cid) {
     if (lead) lead.status = "Completed";
   }
   savePersisted();
+  // Sync to Supabase
+  saveToSupabase("claims", c).catch(e => console.warn("Supabase save failed:", e));
+  if (item) saveToSupabase("founditems", item).catch(e => console.warn("Supabase save failed:", e));
+  if (isLostRecovery) {
+    const report = lostReports.find((r) => Number(r.id) === Number(c.relatedLostReportId));
+    if (report) saveToSupabase("lostreports", report).catch(e => console.warn("Supabase save failed:", e));
+    const lead = lostItemLeads.find((l) => Number(l.id) === Number(c.relatedLeadId));
+    if (lead) saveToSupabase("lostitemleads", lead).catch(e => console.warn("Supabase save failed:", e));
+  }
   renderAdminClaims();
   renderAdminLostRecoveries();
   updateAdminStats();
@@ -3147,6 +3183,15 @@ function rejectClaim(cid) {
     if (lead) lead.status = "Accepted";
   }
   savePersisted();
+  // Sync to Supabase
+  saveToSupabase("claims", c).catch(e => console.warn("Supabase save failed:", e));
+  if (item && item.status === "Unclaimed") saveToSupabase("founditems", item).catch(e => console.warn("Supabase save failed:", e));
+  if (c.sourceType === "lost-recovery") {
+    const report = lostReports.find((r) => Number(r.id) === Number(c.relatedLostReportId));
+    if (report) saveToSupabase("lostreports", report).catch(e => console.warn("Supabase save failed:", e));
+    const lead = lostItemLeads.find((l) => Number(l.id) === Number(c.relatedLeadId));
+    if (lead) saveToSupabase("lostitemleads", lead).catch(e => console.warn("Supabase save failed:", e));
+  }
   renderAdminClaims();
   renderAdminLostRecoveries();
   updateAdminStats();
