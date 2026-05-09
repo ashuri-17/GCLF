@@ -1,4 +1,4 @@
-﻿// ===================== SUPABASE INITIALIZATION =====================
+// ===================== SUPABASE INITIALIZATION =====================
 // Supabase client - loaded from CDN: <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 const SUPABASE_URL = 'https://wzdjjtttszukvfdbxluf.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6ZGpqdHR0c3p1a3ZmZGJ4bHVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3Mzg3ODcsImV4cCI6MjA5MzMxNDc4N30.iD4pEnD0Rm_XRGIcdg-M_4UgSYw7nqFnVNbzmojQXGM';
@@ -3502,7 +3502,12 @@ if (document.readyState === "loading") {
 
 // ===================== AI ASSISTANT FUNCTIONS =====================
 // Using Google AI Studio (Gemini API) - supports CORS from browser
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+const GEMINI_MODELS = [
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+  "gemini-1.5-flash-latest"
+];
+const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 
 // Get API key from localStorage or window variable
 function getGeminiKey() {
@@ -3636,41 +3641,71 @@ Current system data:
 Provide concise, helpful insights and recommendations. Be professional but friendly.`;
 
   try {
-    const url = `${GEMINI_API_URL}?key=${apiKey}`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: systemInstruction }]
+    let lastError = null;
+
+    for (const model of GEMINI_MODELS) {
+      const url = `${GEMINI_BASE_URL}/${model}:generateContent?key=${apiKey}`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
         },
-        contents: [{
-          role: "user",
-          parts: [{ text: userMessage }]
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 1000
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{ text: systemInstruction }]
+          },
+          contents: [{
+            role: "user",
+            parts: [{ text: userMessage }]
+          }],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 1000
+          }
+        })
+      });
+
+      if (!response.ok) {
+        let errorMsg = "Unknown error";
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error?.message || errorMsg;
+        } catch (_) {
+          // Keep a stable fallback message when API doesn't return JSON.
         }
-      })
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      const errorMsg = errorData.error?.message || 'Unknown error';
-      
-      // Check for rate limit (429) errors
-      if (response.status === 429 || errorMsg.includes("Quota exceeded")) {
-        throw new Error("Rate limit exceeded. Google AI Studio free tier has limits. Please wait a minute and try again, or check your quota at https://ai.google.dev/gemini-api/docs/rate-limits");
+
+        // Rate/quota issues are not model-specific, so fail immediately.
+        if (response.status === 429 || errorMsg.includes("Quota exceeded")) {
+          throw new Error("Rate limit exceeded. Google AI Studio free tier has limits. Please wait a minute and try again, or check your quota at https://ai.google.dev/gemini-api/docs/rate-limits");
+        }
+
+        // Invalid key or permission problems should fail immediately.
+        if (response.status === 401 || response.status === 403) {
+          throw new Error(`Authentication failed: ${errorMsg}`);
+        }
+
+        // Model-specific errors can be retried with another model.
+        lastError = new Error(`Model ${model} failed (${response.status}): ${errorMsg}`);
+        continue;
       }
-      
-      throw new Error(`API error: ${response.status} - ${errorMsg}`);
+
+      const data = await response.json();
+      const text = data?.candidates?.[0]?.content?.parts
+        ?.map((p) => p?.text || "")
+        .join("")
+        .trim();
+
+      if (text) return text;
+
+      // If request succeeded but returned no text, try another model before failing.
+      lastError = new Error(`Model ${model} returned an empty response.`);
     }
-    
-    const data = await response.json();
-    return data.candidates[0].content.parts[0].text;
+
+    if (lastError) {
+      throw lastError;
+    }
+
+    throw new Error("No available Gemini model returned a response.");
   } catch (error) {
     console.error("AI API error:", error);
     return "Sorry, I couldn't process your request. " + error.message;
