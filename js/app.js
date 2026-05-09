@@ -362,6 +362,7 @@ function getCurrentProfile() {
     studentProfiles[currentUser.email] = {
       fullName: currentUser.name || "",
       studentId: "",
+      college: "",
       program: "",
       yearLevel: "",
       courseYear: currentUser.dept || "",
@@ -371,32 +372,25 @@ function getCurrentProfile() {
   return studentProfiles[currentUser.email];
 }
 
-const PROGRAM_OPTIONS = [
-  "BSIT",
-  "BSCS",
-  "BSEMC",
-  "BSN",
-  "BSM",
-  "BSA",
-  "BSBA-FM",
-  "BSBA-HRM",
-  "BSBA-MM",
-  "BSCA",
-  "BAC",
-  "BECEd",
-  "BPAEd",
-  "BCAEd",
-  "BEEd",
-  "BSEd-Eng",
-  "BSEd-Fil",
-  "BSEd-Math",
-  "BSEd-SS",
-  "BSEd-Sci",
-  "TCP",
-  "BSHM",
-  "BSTM",
-  "Other"
-];
+const PROGRAM_OPTIONS_BY_COLLEGE = {
+  CCS: ["BSIT", "BSCS", "BSEMC"],
+  CAHS: ["BSN", "BSM"],
+  CBA: ["BSA", "BSBA-FM", "BSBA-HRM", "BSBA-MM", "BSCA"],
+  CEAS: ["BAC", "BECEd", "BPAEd", "BCAEd", "BEEd", "BSEd-Eng", "BSEd-Fil", "BSEd-Math", "BSEd-SS", "BSEd-Sci", "TCP"],
+  CHTM: ["BSHM", "BSTM"],
+  Other: ["Other"]
+};
+const COLLEGE_OPTIONS = Object.keys(PROGRAM_OPTIONS_BY_COLLEGE);
+const PROGRAM_OPTIONS = COLLEGE_OPTIONS.flatMap((college) => PROGRAM_OPTIONS_BY_COLLEGE[college]);
+
+function getProgramsForCollege(college) {
+  return PROGRAM_OPTIONS_BY_COLLEGE[college] || [];
+}
+
+function findCollegeByProgram(program) {
+  if (!program) return "";
+  return COLLEGE_OPTIONS.find((college) => getProgramsForCollege(college).includes(program)) || "";
+}
 
 function buildAcademicLabel(program, yearLevel, fallback = "") {
   if (program && yearLevel) return `${program} - Year ${yearLevel}`;
@@ -796,6 +790,7 @@ async function loadAllDataFromSupabase() {
         studentProfiles[email] = {
           fullName: profile.fullName || profile.data?.fullName || "",
           studentId: profile.studentId || profile.data?.studentId || "",
+          college: profile.college || profile.data?.college || "",
           program: profile.program || profile.data?.program || "",
           yearLevel: profile.yearLevel || profile.data?.yearLevel || "",
           courseYear: profile.courseYear || profile.data?.courseYear || "",
@@ -806,6 +801,7 @@ async function loadAllDataFromSupabase() {
           studentProfiles[email].program = studentProfiles[email].program || parsed.program;
           studentProfiles[email].yearLevel = studentProfiles[email].yearLevel || parsed.yearLevel;
         }
+        studentProfiles[email].college = studentProfiles[email].college || findCollegeByProgram(studentProfiles[email].program);
         studentProfiles[email].courseYear = buildAcademicLabel(
           studentProfiles[email].program,
           studentProfiles[email].yearLevel,
@@ -1263,6 +1259,7 @@ function buildStudentProfileForm() {
     p.program = p.program || parsed.program;
     p.yearLevel = p.yearLevel || parsed.yearLevel;
   }
+  p.college = p.college || findCollegeByProgram(p.program);
   p.courseYear = buildAcademicLabel(p.program, p.yearLevel, p.courseYear);
   const hasProfile = p.studentId && p.contactNumber;
   
@@ -1276,6 +1273,10 @@ function buildStudentProfileForm() {
           <div class="profile-view-id">${htmlEsc(p.studentId)}</div>
         </div>
         <div class="profile-view-body">
+          <div class="profile-view-row">
+            <span class="profile-view-label"><i class="bi bi-building"></i> College:</span>
+            <span class="profile-view-value">${htmlEsc(p.college || "Not set")}</span>
+          </div>
           <div class="profile-view-row">
             <span class="profile-view-label"><i class="bi bi-mortarboard"></i> Program:</span>
             <span class="profile-view-value">${htmlEsc(p.program || "Not set")}</span>
@@ -1300,7 +1301,9 @@ function buildStudentProfileForm() {
     `;
   } else {
     // EDIT MODE
-    const programOptions = PROGRAM_OPTIONS.map((program) => `<option value="${htmlEsc(program)}" ${p.program === program ? "selected" : ""}>${htmlEsc(program)}</option>`).join("");
+    const collegeOptions = COLLEGE_OPTIONS.map((college) => `<option value="${htmlEsc(college)}" ${p.college === college ? "selected" : ""}>${htmlEsc(college)}</option>`).join("");
+    const selectedPrograms = getProgramsForCollege(p.college);
+    const programOptions = selectedPrograms.map((program) => `<option value="${htmlEsc(program)}" ${p.program === program ? "selected" : ""}>${htmlEsc(program)}</option>`).join("");
     wrap.innerHTML = `
       <div class="profile-edit-form">
         <label class="f-label">Full Name *</label>
@@ -1308,14 +1311,21 @@ function buildStudentProfileForm() {
         <label class="f-label">Student ID *</label>
         <input class="f-input" id="pf_studentId" value="${htmlEsc(p.studentId)}" placeholder="e.g. 2023-BSIT-001"/>
         <div class="row g-2">
-          <div class="col-7">
+          <div class="col-4">
+            <label class="f-label">College *</label>
+            <select class="f-input" id="pf_college" onchange="onProfileCollegeChange()">
+              <option value="">-- Select --</option>
+              ${collegeOptions}
+            </select>
+          </div>
+          <div class="col-4">
             <label class="f-label">Program *</label>
             <select class="f-input" id="pf_program">
               <option value="">-- Select Program --</option>
               ${programOptions}
             </select>
           </div>
-          <div class="col-5">
+          <div class="col-4">
             <label class="f-label">Year Level *</label>
             <select class="f-input" id="pf_yearLevel">
               <option value="">Year</option>
@@ -1338,6 +1348,14 @@ function buildStudentProfileForm() {
   }
 }
 
+function onProfileCollegeChange() {
+  const college = document.getElementById("pf_college")?.value || "";
+  const programSelect = document.getElementById("pf_program");
+  if (!programSelect) return;
+  const options = getProgramsForCollege(college);
+  programSelect.innerHTML = `<option value="">-- Select Program --</option>${options.map((program) => `<option value="${htmlEsc(program)}">${htmlEsc(program)}</option>`).join("")}`;
+}
+
 function toggleProfileEditMode() {
   window.profileEditMode = !window.profileEditMode;
   buildStudentProfileForm();
@@ -1347,17 +1365,18 @@ async function saveStudentProfile() {
   const err = document.getElementById("pf_err");
   const fullName = document.getElementById("pf_fullName").value.trim();
   const studentId = document.getElementById("pf_studentId").value.trim();
+  const college = document.getElementById("pf_college").value.trim();
   const program = document.getElementById("pf_program").value.trim();
   const yearLevel = document.getElementById("pf_yearLevel").value.trim();
   const contactNumber = document.getElementById("pf_contactNumber").value.trim();
-  if (!fullName || !studentId || !program || !yearLevel || !contactNumber) {
+  if (!fullName || !studentId || !college || !program || !yearLevel || !contactNumber) {
     err.style.display = "block";
     err.textContent = "Please fill in all profile fields.";
     return;
   }
   err.style.display = "none";
   const courseYear = buildAcademicLabel(program, yearLevel, "");
-  const profileData = { fullName, studentId, program, yearLevel, courseYear, contactNumber };
+  const profileData = { fullName, studentId, college, program, yearLevel, courseYear, contactNumber };
   studentProfiles[currentUser.email] = profileData;
   document.getElementById("sbStudentName").textContent = fullName;
   document.getElementById("sbStudentRole").textContent = courseYear;
