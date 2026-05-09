@@ -10,6 +10,14 @@ const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname)));
 
+app.get("/api/health", (_req, res) => {
+  res.json({
+    ok: true,
+    aiConfigured: Boolean(GEMINI_API_KEY),
+    model: DEFAULT_MODEL
+  });
+});
+
 app.post("/api/ai", async (req, res) => {
   try {
     if (!GEMINI_API_KEY) {
@@ -58,4 +66,7 @@ app.post("/api/ai", async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`GCLF server running at http://localhost:${PORT}`);
+  if (!GEMINI_API_KEY) {
+    console.warn("Warning: GEMINI_API_KEY is not set. AI assistant endpoint will return configuration errors until this is provided.");
+  }
 });
