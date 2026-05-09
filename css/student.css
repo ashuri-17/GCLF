@@ -1205,6 +1205,43 @@ select.f-input {
   margin-top: 4px;
 }
 
+.program-chip-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 42px;
+}
+
+.program-chip {
+  border: 1px solid #d6e2f7;
+  background: #f7faff;
+  color: #2f4d75;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.program-chip:hover {
+  border-color: #1a5fac;
+  color: #1a5fac;
+  background: #edf4ff;
+}
+
+.program-chip.active {
+  border-color: #1a5fac;
+  background: #1a5fac;
+  color: #fff;
+}
+
+.program-chip-empty {
+  color: #7e8ca3;
+  font-size: 0.82rem;
+  padding: 8px 2px;
+}
+
 /* ===================== TOGGLE SWITCH (BUBBLES) ===================== */
 .toggle-switch {
   position: relative;

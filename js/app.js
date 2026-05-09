@@ -1303,7 +1303,11 @@ function buildStudentProfileForm() {
     // EDIT MODE
     const collegeOptions = COLLEGE_OPTIONS.map((college) => `<option value="${htmlEsc(college)}" ${p.college === college ? "selected" : ""}>${htmlEsc(college)}</option>`).join("");
     const selectedPrograms = getProgramsForCollege(p.college);
-    const programOptions = selectedPrograms.map((program) => `<option value="${htmlEsc(program)}" ${p.program === program ? "selected" : ""}>${htmlEsc(program)}</option>`).join("");
+    const programChips = selectedPrograms.length
+      ? selectedPrograms
+          .map((program) => `<button type="button" class="program-chip ${p.program === program ? "active" : ""}" onclick="selectProfileProgram('${htmlEsc(program)}')">${htmlEsc(program)}</button>`)
+          .join("")
+      : `<div class="program-chip-empty">Select a college first.</div>`;
     wrap.innerHTML = `
       <div class="profile-edit-form">
         <label class="f-label">Full Name *</label>
@@ -1318,14 +1322,12 @@ function buildStudentProfileForm() {
               ${collegeOptions}
             </select>
           </div>
-          <div class="col-4">
+          <div class="col-8">
             <label class="f-label">Program *</label>
-            <select class="f-input" id="pf_program">
-              <option value="">-- Select Program --</option>
-              ${programOptions}
-            </select>
+            <div id="pf_programChips" class="program-chip-wrap">${programChips}</div>
+            <input type="hidden" id="pf_program" value="${htmlEsc(p.program)}"/>
           </div>
-          <div class="col-4">
+          <div class="col-12">
             <label class="f-label">Year Level *</label>
             <select class="f-input" id="pf_yearLevel">
               <option value="">Year</option>
@@ -1350,10 +1352,25 @@ function buildStudentProfileForm() {
 
 function onProfileCollegeChange() {
   const college = document.getElementById("pf_college")?.value || "";
-  const programSelect = document.getElementById("pf_program");
-  if (!programSelect) return;
+  const programHidden = document.getElementById("pf_program");
+  const chipWrap = document.getElementById("pf_programChips");
+  if (!programHidden || !chipWrap) return;
+  programHidden.value = "";
   const options = getProgramsForCollege(college);
-  programSelect.innerHTML = `<option value="">-- Select Program --</option>${options.map((program) => `<option value="${htmlEsc(program)}">${htmlEsc(program)}</option>`).join("")}`;
+  chipWrap.innerHTML = options.length
+    ? options
+        .map((program) => `<button type="button" class="program-chip" onclick="selectProfileProgram('${htmlEsc(program)}')">${htmlEsc(program)}</button>`)
+        .join("")
+    : `<div class="program-chip-empty">Select a college first.</div>`;
+}
+
+function selectProfileProgram(program) {
+  const hidden = document.getElementById("pf_program");
+  if (hidden) hidden.value = program;
+  const chips = document.querySelectorAll("#pf_programChips .program-chip");
+  chips.forEach((chip) => {
+    chip.classList.toggle("active", chip.textContent.trim() === program);
+  });
 }
 
 function toggleProfileEditMode() {
