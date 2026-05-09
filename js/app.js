@@ -437,6 +437,12 @@ function htmlEsc(s) {
     .replace(/>/g, "&gt;");
 }
 
+function attrEsc(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;");
+}
+
 function sanitizeText(s) {
   // Fix garbled UTF-8 characters that may be stored in old data
   return String(s || "")
@@ -2631,6 +2637,93 @@ function refreshLeadMessages(oldLeads, newLeads) {
   });
 }
 
+function openAdminReviewReportModal(kind, id) {
+  if (!requirePermission("admin.reports.review")) return;
+  const body = document.getElementById("adminReviewReportBody");
+  const titleEl = document.getElementById("adminReviewReportTitle");
+  if (!body || !titleEl) return;
+  const numId = Number(id);
+
+  function detail(icon, lbl, val) {
+    const v = val === undefined || val === null || String(val).trim() === "" ? "—" : String(val);
+    return `<div class="detail-row"><i class="${icon}"></i><span class="detail-lbl">${htmlEsc(lbl)}</span><span>${htmlEsc(v)}</span></div>`;
+  }
+
+  const idLit = JSON.stringify(String(id));
+
+  if (kind === "found") {
+    const r = pendingFoundReports.find((x) => Number(x.id) === numId);
+    if (!r) {
+      showToast("This report is no longer pending or was removed.", "warn");
+      return;
+    }
+    titleEl.innerHTML = `<i class="bi bi-box-seam me-2"></i>Found item report`;
+    const idents = Array.isArray(r.identifiers) ? r.identifiers.join(", ") : String(r.identifiers || "").trim();
+    const imgHtml = r.image
+      ? `<div class="admin-review-report-img-wrap"><img src="${attrEsc(r.image)}" alt=""/></div>`
+      : `<div class="admin-review-report-placeholder"><i class="bi bi-image"></i><span>No photo</span></div>`;
+    body.innerHTML = `
+      ${imgHtml}
+      <div class="claim-info-name mb-2" style="font-size:1.05rem;">${htmlEsc(sanitizeText(r.name))}</div>
+      ${detail("bi bi-tag", "Category", sanitizeText(r.category))}
+      ${detail("bi bi-droplet-half", "Color", r.color)}
+      ${detail("bi bi-award", "Brand / Make", r.brand)}
+      ${detail("bi bi-geo-alt", "Location found", sanitizeText(r.location))}
+      ${detail("bi bi-calendar-event", "Date found", r.date)}
+      ${detail("bi bi-file-text", "Description", sanitizeText(r.description))}
+      ${detail("bi bi-fingerprint", "Identifiers", idents || "—")}
+      ${detail("bi bi-person", "Finder", sanitizeText(r.reporterName || r.foundBy))}
+      ${detail("bi bi-envelope", "Email", r.reporterEmail)}
+      ${detail("bi bi-clock", "Submitted", r.submittedAt)}
+      <div class="admin-review-report-actions">
+        <button type="button" class="btn-submit" onclick="approveFoundReport(${idLit})"><i class="bi bi-check-lg"></i> Approve &amp; publish</button>
+        <button type="button" class="btn-cancel" onclick="rejectFoundReport(${idLit})"><i class="bi bi-x-lg"></i> Reject</button>
+      </div>`;
+    openModal("adminReviewReportModal");
+    return;
+  }
+
+  if (kind === "lost") {
+    const r = lostReports.find((x) => Number(x.id) === numId);
+    if (!r) {
+      showToast("Lost report not found.", "warn");
+      return;
+    }
+    titleEl.innerHTML = `<i class="bi bi-send-dash me-2"></i>Lost item report`;
+    const canAct = r.status === "Pending Review";
+    const st = lostReportBadgeClass(r.status);
+    const lb = lostReportBadgeLabel(r.status);
+    const imgHtml = r.image
+      ? `<div class="admin-review-report-img-wrap"><img src="${attrEsc(r.image)}" alt=""/></div>`
+      : `<div class="admin-review-report-placeholder"><i class="bi bi-image"></i><span>No photo</span></div>`;
+    const actions = canAct
+      ? `<div class="admin-review-report-actions">
+        <button type="button" class="btn-submit" onclick="approveLostReport(${idLit})"><i class="bi bi-check-lg"></i> Approve</button>
+        <button type="button" class="btn-cancel" onclick="rejectLostReport(${idLit})"><i class="bi bi-x-lg"></i> Reject</button>
+      </div>`
+      : `<div class="admin-review-report-actions">
+        <button type="button" class="btn-cancel" onclick="closeModal('adminReviewReportModal')">Close</button>
+      </div>`;
+    body.innerHTML = `
+      ${imgHtml}
+      <div class="claim-info-name mb-2" style="font-size:1.05rem;">${htmlEsc(sanitizeText(r.name))}
+        <span class="s-badge ${st}">${htmlEsc(lb)}</span></div>
+      ${detail("bi bi-tag", "Category", sanitizeText(r.category))}
+      ${detail("bi bi-droplet-half", "Color", r.color)}
+      ${detail("bi bi-geo-alt", "Last seen", sanitizeText(r.location))}
+      ${detail("bi bi-calendar-event", "Date lost", r.dateLost)}
+      ${detail("bi bi-file-text", "Description", sanitizeText(r.description))}
+      ${detail("bi bi-fingerprint", "Distinctive marks", sanitizeText(r.marks))}
+      ${detail("bi bi-person", "Reporter", sanitizeText(r.reporterName))}
+      ${detail("bi bi-telephone", "Contact", r.contact)}
+      ${detail("bi bi-envelope", "Email", r.reporterEmail)}
+      ${detail("bi bi-clock", "Submitted", r.submittedAt)}
+      ${actions}`;
+    openModal("adminReviewReportModal");
+    return;
+  }
+}
+
 function renderAdminReports() {
   const foundWrap = document.getElementById("adminFoundReportsList");
   const lostWrap = document.getElementById("adminLostReportsList");
@@ -2644,6 +2737,7 @@ function renderAdminReports() {
         const location = sanitizeText(r.location);
         const reporterName = sanitizeText(r.reporterName || r.foundBy);
         const reporterEmail = sanitizeText(r.reporterEmail || "");
+        const idJson = JSON.stringify(String(r.id));
         return `
     <div class="claim-row">
       <div class="claim-thumb">${r.image ? `<img src="${r.image}" style="width:100%;height:100%;object-fit:cover;"/>` : r.emoji || "📦"}</div>
@@ -2653,6 +2747,7 @@ function renderAdminReports() {
         <div class="claim-info-sub">By: ${htmlEsc(reporterName)} • ${htmlEsc(reporterEmail)}</div>
       </div>
       <div class="admin-actions">
+        <button type="button" class="btn-sm-action view" onclick="openAdminReviewReportModal('found', ${idJson})"><i class="bi bi-eye"></i> View</button>
         <button type="button" class="btn-sm-action approve" onclick="approveFoundReport(${r.id})"><i class="bi bi-check-lg"></i> Approve</button>
         <button type="button" class="btn-sm-action reject" onclick="rejectFoundReport(${r.id})"><i class="bi bi-x-lg"></i> Reject</button>
       </div>
@@ -2667,11 +2762,13 @@ function renderAdminReports() {
     .map((r) => {
       const st = lostReportBadgeClass(r.status);
       const lb = lostReportBadgeLabel(r.status);
+      const idJson = JSON.stringify(String(r.id));
       const actions =
         r.status === "Pending Review"
-          ? `<button type="button" class="btn-sm-action approve" onclick="approveLostReport(${r.id})"><i class="bi bi-check-lg"></i> Approve</button>
+          ? `<button type="button" class="btn-sm-action view" onclick="openAdminReviewReportModal('lost', ${idJson})"><i class="bi bi-eye"></i> View</button>
+             <button type="button" class="btn-sm-action approve" onclick="approveLostReport(${r.id})"><i class="bi bi-check-lg"></i> Approve</button>
              <button type="button" class="btn-sm-action reject" onclick="rejectLostReport(${r.id})"><i class="bi bi-x-lg"></i> Reject</button>`
-          : "";
+          : `<button type="button" class="btn-sm-action view" onclick="openAdminReviewReportModal('lost', ${idJson})"><i class="bi bi-eye"></i> View</button>`;
       const name = sanitizeText(r.name);
       const category = sanitizeText(r.category);
       const location = sanitizeText(r.location);
@@ -2796,6 +2893,7 @@ function approveFoundReport(id) {
   addAuditLog("report.found.approved", { reportId: id, name: r.name });
   addNotification(`Your found-item report "${r.name}" was approved and published.`, "success", r.reporterEmail || null);
   showToast("Found report approved and published.", "success");
+  closeModal("adminReviewReportModal");
 }
 
 function rejectFoundReport(id) {
@@ -2809,6 +2907,7 @@ function rejectFoundReport(id) {
   addAuditLog("report.found.rejected", { reportId: id, name: target?.name || "" });
   if (target?.reporterEmail) addNotification(`Your found-item report "${target.name}" was rejected.`, "danger", target.reporterEmail);
   showToast("Found report rejected.", "danger");
+  closeModal("adminReviewReportModal");
 }
 
 function approveLostReport(id) {
@@ -2824,6 +2923,7 @@ function approveLostReport(id) {
   addAuditLog("report.lost.approved", { reportId: id, name: r.name });
   addNotification(`Your lost report "${r.name}" was approved and is now visible.`, "success", r.reporterEmail || null);
   showToast("Lost report approved.", "success");
+  closeModal("adminReviewReportModal");
 }
 
 function rejectLostReport(id) {
@@ -2839,6 +2939,7 @@ function rejectLostReport(id) {
   addAuditLog("report.lost.rejected", { reportId: id, name: r.name });
   addNotification(`Your lost report "${r.name}" was rejected.`, "danger", r.reporterEmail || null);
   showToast("Lost report rejected.", "danger");
+  closeModal("adminReviewReportModal");
 }
 
 function openReportModal() {
@@ -3786,7 +3887,7 @@ function openModal(id) {
 }
 
 function closeModal(id) {
-  document.getElementById(id).classList.remove("open");
+  document.getElementById(id)?.classList.remove("open");
 }
 
 function closeOnOverlay(e, id) {
