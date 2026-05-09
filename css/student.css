@@ -601,17 +601,39 @@ img { max-width: 100%; height: auto; }
 .f-input:focus { border-color: var(--gc-blue); background: #f5f8ff; }
 .photo-upload-area {
   border: 2.5px dashed #b0c4de; border-radius: 11px;
-  padding: 20px; text-align: center; cursor: pointer;
+  padding: 0; min-height: 220px;
+  display: flex; align-items: center; justify-content: center;
+  text-align: center; cursor: pointer;
   background: #f5f8ff; margin-bottom: 14px;
   transition: border-color 0.2s, background 0.2s; position: relative;
+  overflow: hidden;
 }
 .photo-upload-area:hover { border-color: var(--gc-blue); background: #eef2fa; }
+.photo-upload-area.has-preview { padding: 0; background: #e8ecf4; }
+.photo-upload-area.has-preview:hover { background: #e0e6f0; }
+.photo-upload-hint {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px; padding: 24px 16px; pointer-events: none;
+  position: relative; z-index: 0;
+}
 .photo-upload-area input[type="file"] {
-  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%;
+  position: absolute; inset: 0; opacity: 0; cursor: pointer;
+  width: 100%; height: 100%; z-index: 2;
 }
 .photo-preview {
-  max-height: 130px; border-radius: 8px;
-  margin-top: 10px; max-width: 100%; display: none;
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  object-position: center;
+  border-radius: 9px;
+  margin: 0; display: none;
+  z-index: 1; pointer-events: none;
+}
+.photo-upload-area.has-preview .photo-preview {
+  display: block;
+}
+.photo-upload-area.has-preview .photo-upload-hint {
+  display: none;
 }
 .f-err {
   display: none; color: #dc3545; font-size: 0.83rem;

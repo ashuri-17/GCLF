@@ -1701,9 +1701,11 @@ function showClaimForm(id) {
     <label class="f-label">Upload Photo Proof *</label>
     <div class="photo-upload-area">
       <input type="file" id="claimPhoto" accept="image/*" onchange="previewPhoto(event,'claimPhotoPreview')"/>
-      <i class="bi bi-camera" style="font-size:2rem;color:#b0c4de;display:block;margin-bottom:6px;"></i>
-      <div style="color:#888;font-size:0.88rem;">Upload a photo showing identifying marks</div>
-      <img id="claimPhotoPreview" class="photo-preview" src="" alt="preview"/>
+      <div class="photo-upload-hint">
+        <i class="bi bi-camera" style="font-size:2rem;color:#b0c4de;"></i>
+        <div style="color:#888;font-size:0.88rem;">Upload a photo showing identifying marks</div>
+      </div>
+      <img id="claimPhotoPreview" class="photo-preview" alt="preview"/>
     </div>
     <div class="f-err" id="claimErr"></div>
     <button type="button" class="btn-submit" onclick="submitClaim(${id})"><i class="bi bi-send-fill"></i> Submit Claim Request</button>
@@ -1879,9 +1881,11 @@ function buildReportForm(containerId, isAdmin) {
     <label class="f-label">Photo of Item *</label>
     <div class="photo-upload-area">
       <input type="file" id="${containerId}_photo" accept="image/*" onchange="previewPhoto(event,'${containerId}_photoPreview')"/>
-      <i class="bi bi-image" style="font-size:2rem;color:#b0c4de;display:block;margin-bottom:6px;"></i>
-      <div style="color:#888;font-size:0.88rem;">Upload clear photo (required)</div>
-      <img id="${containerId}_photoPreview" class="photo-preview" src="" alt="preview"/>
+      <div class="photo-upload-hint">
+        <i class="bi bi-image" style="font-size:2rem;color:#b0c4de;"></i>
+        <div style="color:#888;font-size:0.88rem;">Upload clear photo (required)</div>
+      </div>
+      <img id="${containerId}_photoPreview" class="photo-preview" alt="preview"/>
     </div>
     <div class="f-err" id="${containerId}_err"></div>
     <button type="button" class="btn-submit" onclick="submitFoundItem('${containerId}', ${isAdmin})"><i class="bi bi-send-fill"></i> ${btnLabel}</button>
@@ -1891,14 +1895,22 @@ function buildReportForm(containerId, isAdmin) {
 
 function previewPhoto(e, previewId) {
   const file = e.target.files[0];
-  if (!file) return;
+  const p = document.getElementById(previewId);
+  const area = p?.closest(".photo-upload-area");
+  if (!file) {
+    if (p) {
+      p.src = "";
+      p.removeAttribute("src");
+    }
+    if (area) area.classList.remove("has-preview");
+    return;
+  }
   const reader = new FileReader();
   reader.onload = (ev) => {
-    const p = document.getElementById(previewId);
     if (p) {
       p.src = ev.target.result;
-      p.style.display = "block";
     }
+    if (area) area.classList.add("has-preview");
   };
   reader.readAsDataURL(file);
 }
@@ -2040,9 +2052,11 @@ function buildLostReportForm() {
     <label class="f-label">Photo of Lost Item *</label>
     <div class="photo-upload-area">
       <input type="file" id="lost_photo" accept="image/*" onchange="previewPhoto(event,'lost_photo_preview')"/>
-      <i class="bi bi-image" style="font-size:2rem;color:#b0c4de;display:block;margin-bottom:6px;"></i>
-      <div style="color:#888;font-size:0.88rem;">Upload clear photo (required)</div>
-      <img id="lost_photo_preview" class="photo-preview" src="" alt="preview"/>
+      <div class="photo-upload-hint">
+        <i class="bi bi-image" style="font-size:2rem;color:#b0c4de;"></i>
+        <div style="color:#888;font-size:0.88rem;">Upload clear photo (required)</div>
+      </div>
+      <img id="lost_photo_preview" class="photo-preview" alt="preview"/>
     </div>
     <div class="f-err" id="lost_err"></div>
     <button type="button" class="btn-submit" onclick="submitLostReport()"><i class="bi bi-send-fill"></i> Submit Lost Report</button>
@@ -2350,9 +2364,11 @@ function openFoundYourItemModal(lostReportId) {
     <label class="f-label">Photo proof *</label>
     <div class="photo-upload-area">
       <input type="file" id="fy_photo" accept="image/*" onchange="previewPhoto(event,'fy_photo_preview')"/>
-      <i class="bi bi-image" style="font-size:2rem;color:#b0c4de;display:block;margin-bottom:6px;"></i>
-      <div style="color:#888;font-size:0.88rem;">Required</div>
-      <img id="fy_photo_preview" class="photo-preview" src="" alt="preview"/>
+      <div class="photo-upload-hint">
+        <i class="bi bi-image" style="font-size:2rem;color:#b0c4de;"></i>
+        <div style="color:#888;font-size:0.88rem;">Required</div>
+      </div>
+      <img id="fy_photo_preview" class="photo-preview" alt="preview"/>
     </div>
     <div class="f-err" id="fy_err"></div>
     <button type="button" class="btn-submit" onclick="submitFoundYourItem(${report.id})"><i class="bi bi-send-fill"></i> Send to Reporter</button>
