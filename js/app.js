@@ -3501,23 +3501,8 @@ if (document.readyState === "loading") {
 }
 
 // ===================== AI ASSISTANT FUNCTIONS =====================
-// Using Google AI Studio (Gemini API) - supports CORS from browser
-const GEMINI_MODELS = [
-  "gemini-2.0-flash",
-  "gemini-1.5-flash",
-  "gemini-1.5-flash-latest"
-];
-const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
-
-// Get API key from localStorage or window variable
-function getGeminiKey() {
-  return localStorage.getItem('gclf_gemini_key') || window.GEMINI_API_KEY || '';
-}
-
-// Save API key to localStorage
-function saveGeminiKey(key) {
-  localStorage.setItem('gclf_gemini_key', key);
-}
+// Gemini is called via local backend endpoint to keep API keys off the client.
+const GEMINI_SERVER_MODEL = "gemini-2.0-flash";
 
 // Calculate analytics data for AI
 function getAnalyticsData() {
@@ -3621,11 +3606,6 @@ function hideAILoading() {
 
 // Send message to Gemini API
 async function sendToAI(userMessage, systemPrompt = null) {
-  const apiKey = getGeminiKey();
-  if (!apiKey) {
-    return "Please set your Google AI Studio API key first. Use the Settings option in the AI panel.";
-  }
-  
   const analytics = getAnalyticsData();
   
   const systemInstruction = systemPrompt || `You are an AI analytics assistant for the Gordon College Lost & Found (GCLF) system.
@@ -3641,71 +3621,26 @@ Current system data:
 Provide concise, helpful insights and recommendations. Be professional but friendly.`;
 
   try {
-    let lastError = null;
+    const response = await fetch("/api/ai", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        message: userMessage,
+        systemInstruction,
+        model: GEMINI_SERVER_MODEL
+      })
+    });
 
-    for (const model of GEMINI_MODELS) {
-      const url = `${GEMINI_BASE_URL}/${model}:generateContent?key=${apiKey}`;
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [{ text: systemInstruction }]
-          },
-          contents: [{
-            role: "user",
-            parts: [{ text: userMessage }]
-          }],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 1000
-          }
-        })
-      });
-
-      if (!response.ok) {
-        let errorMsg = "Unknown error";
-        try {
-          const errorData = await response.json();
-          errorMsg = errorData.error?.message || errorMsg;
-        } catch (_) {
-          // Keep a stable fallback message when API doesn't return JSON.
-        }
-
-        // Rate/quota issues are not model-specific, so fail immediately.
-        if (response.status === 429 || errorMsg.includes("Quota exceeded")) {
-          throw new Error("Rate limit exceeded. Google AI Studio free tier has limits. Please wait a minute and try again, or check your quota at https://ai.google.dev/gemini-api/docs/rate-limits");
-        }
-
-        // Invalid key or permission problems should fail immediately.
-        if (response.status === 401 || response.status === 403) {
-          throw new Error(`Authentication failed: ${errorMsg}`);
-        }
-
-        // Model-specific errors can be retried with another model.
-        lastError = new Error(`Model ${model} failed (${response.status}): ${errorMsg}`);
-        continue;
-      }
-
-      const data = await response.json();
-      const text = data?.candidates?.[0]?.content?.parts
-        ?.map((p) => p?.text || "")
-        .join("")
-        .trim();
-
-      if (text) return text;
-
-      // If request succeeded but returned no text, try another model before failing.
-      lastError = new Error(`Model ${model} returned an empty response.`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.error || `AI request failed (${response.status})`);
     }
 
-    if (lastError) {
-      throw lastError;
-    }
-
-    throw new Error("No available Gemini model returned a response.");
+    const text = String(data?.text || "").trim();
+    if (!text) throw new Error("Gemini returned an empty response.");
+    return text;
   } catch (error) {
     console.error("AI API error:", error);
     return "Sorry, I couldn't process your request. " + error.message;
@@ -3774,36 +3709,17 @@ function toggleAISettings() {
   if (panel) {
     panel.style.display = panel.style.display === "none" ? "block" : "none";
     if (panel.style.display === "block") {
-      // Load existing key (masked)
-      const existingKey = getGeminiKey();
-      if (existingKey) {
-        document.getElementById("aiApiKeyInput").value = existingKey;
-        document.getElementById("aiSettingsStatus").textContent = "API key is saved. Click Save to update.";
-      }
+      document.getElementById("aiSettingsStatus").textContent = "No browser key required. Gemini is configured on the server.";
+      document.getElementById("aiSettingsStatus").style.color = "#666";
     }
   }
 }
 
 function saveAISettings() {
-  const keyInput = document.getElementById("aiApiKeyInput");
-  const key = keyInput.value.trim();
   const statusDiv = document.getElementById("aiSettingsStatus");
-  
-  if (!key) {
-    statusDiv.textContent = "Please enter an API key.";
-    return;
-  }
-  
-  // Google API keys start with AIza
-  if (!key.startsWith("AIza")) {
-    statusDiv.textContent = "Invalid API key format. Google AI Studio keys should start with 'AIza'.";
-    return;
-  }
-  
-  saveGeminiKey(key);
-  statusDiv.textContent = "API key saved successfully! You can now use the AI assistant.";
+
+  statusDiv.textContent = "No browser key needed. AI uses secure server-side Gemini configuration.";
   statusDiv.style.color = "#28a745";
-  keyInput.value = "";
   
   // Hide panel after 2 seconds
   setTimeout(() => {
@@ -3868,15 +3784,8 @@ function toggleAISettingsPopup() {
   if (settings) {
     settings.style.display = settings.style.display === "none" ? "block" : "none";
     if (settings.style.display === "block") {
-      const existingKey = getGeminiKey();
-      if (existingKey) {
-        document.getElementById("aiApiKeyInput").value = existingKey;
-        document.getElementById("aiSettingsStatus").textContent = "API key is saved. Click Save to update.";
-        document.getElementById("aiSettingsStatus").style.color = "#28a745";
-      } else {
-        document.getElementById("aiSettingsStatus").textContent = "No API key set. Please enter your Google AI Studio API key.";
-        document.getElementById("aiSettingsStatus").style.color = "#dc3545";
-      }
+      document.getElementById("aiSettingsStatus").textContent = "Gemini is configured on the server. Run the app with the Node server to enable AI.";
+      document.getElementById("aiSettingsStatus").style.color = "#666";
     }
   }
 }

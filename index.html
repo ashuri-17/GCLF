@@ -515,10 +515,10 @@
       </div>
     </div>
     <div class="ai-chat-settings" id="aiChatSettings">
-      <label style="font-size:0.85rem;color:#666;">Google AI Studio API Key:</label>
+      <label style="font-size:0.85rem;color:#666;">AI Provider Settings:</label>
       <div class="d-flex gap-2 mt-1">
-        <input type="password" class="f-input" id="aiApiKeyInput" placeholder="Enter your Google AI Studio API key (AIza...)" style="flex:1;">
-        <button class="btn-gc" style="padding:6px 12px;font-size:0.85rem;" onclick="saveAISettings()"><i class="bi bi-save"></i> Save</button>
+        <input type="text" class="f-input" id="aiApiKeyInput" value="Using server-side Gemini model (configured in .env)" readonly style="flex:1;">
+        <button class="btn-gc" style="padding:6px 12px;font-size:0.85rem;" onclick="saveAISettings()"><i class="bi bi-check2-circle"></i> OK</button>
       </div>
       <div id="aiSettingsStatus" style="font-size:0.8rem;margin-top:8px;color:#28a745;"></div>
     </div>
