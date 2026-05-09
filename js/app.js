@@ -1330,6 +1330,24 @@ async function saveStudentProfile() {
   buildStudentProfileForm();
 }
 
+function getProfileFieldLabel(key) {
+  if (key === "fullName") return "Full Name";
+  if (key === "contactNumber") return "Contact Number";
+  if (key === "studentId") return "Student ID";
+  return key;
+}
+
+function getRequiredProfile(requiredKeys, actionLabel) {
+  const profile = getCurrentProfile();
+  const missing = requiredKeys.filter((key) => !String(profile?.[key] || "").trim());
+  if (!missing.length) return profile;
+
+  showToast(`Please complete your profile first (${missing.map(getProfileFieldLabel).join(", ")}) before ${actionLabel}.`, "warn");
+  const profileNav = document.querySelector('#studentSidebar .sb-item[data-page="profile"]');
+  if (profileNav) studentNav("profile", profileNav);
+  return null;
+}
+
 function buildCard(item) {
   const name = sanitizeText(item.name);
   const location = sanitizeText(item.location);
@@ -1542,17 +1560,17 @@ function openItemModal(id) {
 }
 
 function showClaimForm(id) {
-  const profile = getCurrentProfile();
+  const profile = getRequiredProfile(["fullName", "studentId", "contactNumber"], "submitting a claim");
+  if (!profile) return;
   const btn = document.getElementById("btnOpenClaim");
   if (btn) btn.style.display = "none";
   document.getElementById("claimFormSlot").innerHTML = `
     <div class="modal-section mt-3"><i class="bi bi-hand-index-fill me-1"></i>Claim Request Form</div>
-    <label class="f-label">Full Name *</label>
-    <input class="f-input" id="claimName" value="${htmlEsc(profile?.fullName || "")}" placeholder="e.g. Juan Dela Cruz"/>
-    <label class="f-label">Student ID Number *</label>
-    <input class="f-input" id="claimIdNum" value="${htmlEsc(profile?.studentId || "")}" placeholder="e.g. 2023-BSIT-001"/>
-    <label class="f-label">Contact Number *</label>
-    <input class="f-input" id="claimContact" value="${htmlEsc(profile?.contactNumber || "")}" placeholder="e.g. 09XXXXXXXXX"/>
+    <div class="report-summary-box">
+      <div><i class="bi bi-person-fill me-1"></i><strong>Name:</strong> ${htmlEsc(profile.fullName)}</div>
+      <div><i class="bi bi-card-text me-1"></i><strong>Student ID:</strong> ${htmlEsc(profile.studentId)}</div>
+      <div><i class="bi bi-telephone-fill me-1"></i><strong>Contact:</strong> ${htmlEsc(profile.contactNumber)}</div>
+    </div>
     <label class="f-label">Description *</label>
     <textarea class="f-input" id="claimProofDesc" rows="3" placeholder="Describe why this item is yours..."></textarea>
     <label class="f-label">Identifying marks *</label>
@@ -1577,14 +1595,16 @@ function cancelClaim() {
 }
 
 async function submitClaim(id) {
-  const name = document.getElementById("claimName").value.trim();
-  const idNum = document.getElementById("claimIdNum").value.trim();
-  const contact = document.getElementById("claimContact").value.trim();
+  const profile = getRequiredProfile(["fullName", "studentId", "contactNumber"], "submitting a claim");
+  if (!profile) return;
+  const name = profile.fullName.trim();
+  const idNum = profile.studentId.trim();
+  const contact = profile.contactNumber.trim();
   const proof = document.getElementById("claimProofDesc").value.trim();
   const marks = document.getElementById("claimMarks").value.trim();
   const photo = document.getElementById("claimPhoto");
   const errEl = document.getElementById("claimErr");
-  if (!name || !idNum || !contact || !proof || !marks) {
+  if (!proof || !marks) {
     errEl.style.display = "block";
     errEl.textContent = "Please fill in all required fields.";
     return;
@@ -1698,6 +1718,13 @@ function renderMyClaims() {
 function buildReportForm(containerId, isAdmin) {
   const el = document.getElementById(containerId);
   if (!el) return;
+  const profile = !isAdmin ? getCurrentProfile() : null;
+  const profileFinderName = profile?.fullName ? htmlEsc(profile.fullName) : "Not set in profile";
+  const finderField = isAdmin
+    ? `<label class="f-label">Logged By (Staff Name) *</label>
+    <input class="f-input" id="${containerId}_finder" placeholder="Your name"/>`
+    : `<label class="f-label">Finder Name</label>
+    <div class="report-summary-box"><i class="bi bi-person-fill me-1"></i>${profileFinderName}</div>`;
   const btnLabel = isAdmin ? "Log Item into System" : "Submit Found Item Report";
   el.innerHTML = `
     <label class="f-label">Item Name *</label>
@@ -1725,8 +1752,7 @@ function buildReportForm(containerId, isAdmin) {
     <textarea class="f-input" id="${containerId}_desc" rows="3"></textarea>
     <label class="f-label">Identifiers / Stickers / Markings * <span style="color:#aaa;font-weight:400;">(comma-separated)</span></label>
     <input class="f-input" id="${containerId}_idents" placeholder="e.g. GC sticker, scratch on corner"/>
-    <label class="f-label">${isAdmin ? "Logged By (Staff Name) *" : "Your Name (Finder) *"}</label>
-    <input class="f-input" id="${containerId}_finder" placeholder="Your name"/>
+    ${finderField}
     <label class="f-label">Photo of Item *</label>
     <div class="photo-upload-area">
       <input type="file" id="${containerId}_photo" accept="image/*" onchange="previewPhoto(event,'${containerId}_photoPreview')"/>
@@ -1757,15 +1783,17 @@ function previewPhoto(e, previewId) {
 async function submitFoundItem(cid, isAdmin) {
   const get = (suffix) => (document.getElementById(`${cid}_${suffix}`)?.value || "").trim();
   const errEl = document.getElementById(`${cid}_err`);
+  const profile = !isAdmin ? getRequiredProfile(["fullName"], "submitting a found-item report") : null;
+  if (!isAdmin && !profile) return;
   const name = get("name");
   const cat = get("cat");
   const loc = get("loc");
   const date = get("date");
   const desc = get("desc");
   const idents = get("idents");
-  const finder = get("finder");
+  const finder = isAdmin ? get("finder") : profile.fullName.trim();
   const photo = document.getElementById(`${cid}_photo`);
-  if (!name || !cat || !loc || !date || !desc || !idents || !finder) {
+  if (!name || !cat || !loc || !date || !desc || !idents || (isAdmin && !finder)) {
     errEl.style.display = "block";
     errEl.textContent = "Please fill in all required (*) fields.";
     return;
@@ -1859,6 +1887,7 @@ function buildLostReportForm() {
   const el = document.getElementById("lostReportFormWrap");
   if (!el) return;
   const p = getCurrentProfile();
+  const profileContact = p?.contactNumber ? htmlEsc(p.contactNumber) : "Not set in profile";
   el.innerHTML = `
     <label class="f-label">What did you lose? *</label>
     <input class="f-input" id="lost_name" placeholder="e.g. Blue umbrella"/>
@@ -1883,8 +1912,8 @@ function buildLostReportForm() {
     <textarea class="f-input" id="lost_desc" rows="3"></textarea>
     <label class="f-label">Distinctive marks *</label>
     <input class="f-input" id="lost_marks" placeholder="Stickers, scratches, serial number"/>
-    <label class="f-label">Contact Number *</label>
-    <input class="f-input" id="lost_contact" value="${htmlEsc(p?.contactNumber || "")}" placeholder="09XXXXXXXXX"/>
+    <label class="f-label">Contact Number</label>
+    <div class="report-summary-box"><i class="bi bi-telephone-fill me-1"></i>${profileContact}</div>
     <label class="f-label">Photo of Lost Item *</label>
     <div class="photo-upload-area">
       <input type="file" id="lost_photo" accept="image/*" onchange="previewPhoto(event,'lost_photo_preview')"/>
@@ -1900,9 +1929,11 @@ function buildLostReportForm() {
 
 async function submitLostReport() {
   const get = (id) => (document.getElementById(id)?.value || "").trim();
+  const profile = getRequiredProfile(["fullName", "contactNumber"], "submitting a lost-item report");
+  if (!profile) return;
   const err = document.getElementById("lost_err");
   const photo = document.getElementById("lost_photo");
-  if (!get("lost_name") || !get("lost_cat") || !get("lost_loc") || !get("lost_date") || !get("lost_desc") || !get("lost_marks") || !get("lost_contact")) {
+  if (!get("lost_name") || !get("lost_cat") || !get("lost_loc") || !get("lost_date") || !get("lost_desc") || !get("lost_marks")) {
     err.style.display = "block";
     err.textContent = "Please fill in all required fields.";
     return;
@@ -1927,7 +1958,7 @@ async function submitLostReport() {
   const entry = {
     id: Date.now().toString(),
     reporterEmail: currentUser.email,
-    reporterName: getCurrentProfile()?.fullName || currentUser.name,
+    reporterName: profile.fullName || currentUser.name,
     name: get("lost_name"),
     category: get("lost_cat"),
     color: get("lost_color"),
@@ -1935,7 +1966,7 @@ async function submitLostReport() {
     dateLost: get("lost_date"),
     description: get("lost_desc"),
     marks: get("lost_marks"),
-    contact: get("lost_contact"),
+    contact: profile.contactNumber,
     image: imageData,
     imageStoredRemotely,
     submittedAt: new Date().toLocaleString(),
@@ -2181,15 +2212,16 @@ function openFoundYourItemModal(lostReportId) {
     showToast("You already submitted a response for this lost report.", "warn");
     return;
   }
-  const p = getCurrentProfile();
+  const p = getRequiredProfile(["fullName", "contactNumber"], "sending a found-item response");
+  if (!p) return;
   document.getElementById("foundYourItemBody").innerHTML = `
     <div class="modal-section" style="margin-top:0;">Lost Report</div>
     <div class="detail-row"><i class="bi bi-search"></i><span class="detail-lbl">Item:</span>${htmlEsc(report.name)}</div>
     <div class="detail-row"><i class="bi bi-geo-alt"></i><span class="detail-lbl">Location:</span>${htmlEsc(report.location)}</div>
-    <label class="f-label">Your name *</label>
-    <input class="f-input" id="fy_name" value="${htmlEsc(p?.fullName || "")}" />
-    <label class="f-label">Your contact *</label>
-    <input class="f-input" id="fy_contact" value="${htmlEsc(p?.contactNumber || "")}" />
+    <div class="report-summary-box">
+      <div><i class="bi bi-person-fill me-1"></i><strong>Your name:</strong> ${htmlEsc(p.fullName)}</div>
+      <div><i class="bi bi-telephone-fill me-1"></i><strong>Your contact:</strong> ${htmlEsc(p.contactNumber)}</div>
+    </div>
     <label class="f-label">Proof that this is the same item *</label>
     <textarea class="f-input" id="fy_proof" rows="3" placeholder="Describe exact marks / context where you found it"></textarea>
     <label class="f-label">Photo proof *</label>
@@ -2207,11 +2239,13 @@ function openFoundYourItemModal(lostReportId) {
 
 async function submitFoundYourItem(lostReportId) {
   const err = document.getElementById("fy_err");
-  const name = document.getElementById("fy_name").value.trim();
-  const contact = document.getElementById("fy_contact").value.trim();
+  const profile = getRequiredProfile(["fullName", "contactNumber"], "sending a found-item response");
+  if (!profile) return;
+  const name = profile.fullName.trim();
+  const contact = profile.contactNumber.trim();
   const proof = document.getElementById("fy_proof").value.trim();
   const photo = document.getElementById("fy_photo");
-  if (!name || !contact || !proof) {
+  if (!proof) {
     err.style.display = "block";
     err.textContent = "Please fill in all required fields.";
     return;
@@ -3628,7 +3662,7 @@ function showAILoading() {
   const loadingDiv = document.createElement("div");
   loadingDiv.className = "ai-loading";
   loadingDiv.id = "aiLoadingIndicator";
-  loadingDiv.innerHTML = '<i class="bi bi-stars"></i> AI is thinking...';
+  loadingDiv.innerHTML = '<span class="ai-dot-loader" aria-label="AI is thinking"><span>.</span><span>.</span><span>.</span></span>';
   container.appendChild(loadingDiv);
   container.scrollTop = container.scrollHeight;
 }
@@ -3848,7 +3882,7 @@ function showAILoadingPopup() {
   const loadingDiv = document.createElement("div");
   loadingDiv.className = "ai-message-popup assistant";
   loadingDiv.id = "aiLoadingPopup";
-  loadingDiv.innerHTML = '<div class="ai-loading"><i class="bi bi-stars"></i> AI is thinking...</div>';
+  loadingDiv.innerHTML = '<div class="ai-loading"><span class="ai-dot-loader" aria-label="AI is thinking"><span>.</span><span>.</span><span>.</span></span></div>';
   container.appendChild(loadingDiv);
   
   const body = document.getElementById("aiChatBody");
