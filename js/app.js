@@ -55,6 +55,7 @@ let reportTabFilter = "pending";
 let auditLogPage = 0;
 let auditLogs = [];
 let notifications = [];
+let claimReminderTimer = null;
 let systemConfig = {
   categories: ["Electronics", "Accessories", "Clothing", "Documents", "Bags", "Others"],
   matchingMinOverlap: 1,
@@ -142,6 +143,27 @@ function addNotification(message, type = "info", targetEmail = null) {
   notifications.unshift(entry);
   if (notifications.length > 800) notifications.splice(800);
   saveToSupabase("notifications", entry).catch(e => console.warn("Supabase save failed:", e));
+  if (!targetEmail || targetEmail === currentUser?.email) renderStudentNotificationBell();
+}
+
+function addUniqueNotification(uniqueKey, message, type = "info", targetEmail = null) {
+  if (!systemConfig?.notificationsEnabled) return;
+  const exists = notifications.some((n) => n.uniqueKey === uniqueKey && n.targetEmail === targetEmail);
+  if (exists) return;
+  const entry = {
+    id: Date.now().toString() + Math.floor(Math.random() * 1000).toString(),
+    message: String(message || ""),
+    type,
+    targetEmail,
+    uniqueKey,
+    createdAt: new Date().toLocaleString(),
+    readBy: []
+  };
+  notifications.unshift(entry);
+  if (notifications.length > 800) notifications.splice(800);
+  savePersisted();
+  saveToSupabase("notifications", entry).catch(e => console.warn("Supabase save failed:", e));
+  if (!targetEmail || targetEmail === currentUser?.email) renderStudentNotificationBell();
 }
 
 // ===================== INDEXEDDB STORAGE (50MB+ FREE) =====================
@@ -916,6 +938,8 @@ function setupRealTimeListeners() {
   var unsub3 = listenToSupabase("claims", function(data) {
     allClaims = data;
     rebuildMyClaimsByEmail();
+    runClaimScheduleReminderSweep();
+    renderStudentNotificationBell();
     if (typeof renderAdminClaims === "function") renderAdminClaims();
   });
   unsubscribers.push(unsub3);
@@ -939,6 +963,7 @@ function setupRealTimeListeners() {
   // Listen to notifications (for real-time alerts when leads are accepted)
   var unsub5 = listenToSupabase("notifications", function(data) {
     notifications = data;
+    renderStudentNotificationBell();
     if (typeof renderNotificationsList === "function") renderNotificationsList();
   });
   unsubscribers.push(unsub5);
@@ -1070,6 +1095,13 @@ async function launchStudentApp() {
   renderLostMatches();
   renderMyFoundLeads();
   renderMyFoundReportsList();
+  runClaimScheduleReminderSweep();
+  renderStudentNotificationBell();
+  if (claimReminderTimer) clearInterval(claimReminderTimer);
+  claimReminderTimer = setInterval(() => {
+    runClaimScheduleReminderSweep();
+    renderStudentNotificationBell();
+  }, 60 * 60 * 1000);
   initSidebarToggle();
 }
 
@@ -1111,6 +1143,10 @@ async function doLogout() {
   try {
     await sb.auth.signOut();
   } catch (e) { console.warn("Supabase signOut failed:", e); }
+  if (claimReminderTimer) {
+    clearInterval(claimReminderTimer);
+    claimReminderTimer = null;
+  }
   
   currentUser = null;
   myClaims = [];
@@ -1793,7 +1829,7 @@ function renderMyClaims() {
           <div class="claim-info-sub mt-1"><i class="bi bi-file-earmark-text me-1"></i>${htmlEsc(c.proofDesc)}</div>
           ${c.adminNote ? `<div class="claim-info-sub mt-1"><i class="bi bi-chat-left-dots me-1"></i><strong>Admin Note:</strong> ${htmlEsc(c.adminNote)}</div>` : ""}
           ${c.claimWhere ? `<div class="claim-info-sub"><i class="bi bi-geo-alt me-1"></i><strong>Claim Where:</strong> ${htmlEsc(c.claimWhere)}</div>` : ""}
-          ${c.claimWhen ? `<div class="claim-info-sub"><i class="bi bi-calendar-event me-1"></i><strong>Claim When:</strong> ${fmtDate(c.claimWhen)} ${new Date(c.claimWhen).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>` : ""}
+          ${c.claimWhen ? `<div class="claim-info-sub"><i class="bi bi-calendar-event me-1"></i><strong>Claim Window:</strong> ${fmtDate(c.claimWhen)}${c.claimUntil ? ` - ${fmtDate(c.claimUntil)}` : ""}</div>` : ""}
         </div>
         <div class="text-end"><span class="s-badge ${st}">${c.status}</span></div>
       </div>`;
@@ -2793,6 +2829,102 @@ function openReportModal() {
   openModal("reportModal");
 }
 
+function getStudentNotifications() {
+  if (!currentUser?.email) return [];
+  return notifications
+    .filter((n) => !n.targetEmail || n.targetEmail === currentUser.email)
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+}
+
+function getUnreadNotificationCount() {
+  if (!currentUser?.email) return 0;
+  return getStudentNotifications().filter((n) => !(Array.isArray(n.readBy) && n.readBy.includes(currentUser.email))).length;
+}
+
+function renderStudentNotificationBell() {
+  const countEl = document.getElementById("studentNotifCount");
+  const listEl = document.getElementById("studentNotifList");
+  if (!countEl || !listEl || !currentUser?.email) return;
+  const mine = getStudentNotifications().slice(0, 40);
+  const unread = getUnreadNotificationCount();
+  countEl.textContent = String(unread);
+  countEl.style.display = unread > 0 ? "flex" : "none";
+
+  if (!mine.length) {
+    listEl.innerHTML = `<div class="student-notif-item">No notifications yet.</div>`;
+    return;
+  }
+  listEl.innerHTML = mine
+    .map((n) => {
+      const isRead = Array.isArray(n.readBy) && n.readBy.includes(currentUser.email);
+      return `<div class="student-notif-item ${isRead ? "" : "unread"}" onclick="markStudentNotificationRead('${n.id}')">
+        <div>${htmlEsc(n.message)}</div>
+        <div class="student-notif-item-time">${htmlEsc(n.createdAt || "—")}</div>
+      </div>`;
+    })
+    .join("");
+}
+
+function toggleStudentNotifications() {
+  const panel = document.getElementById("studentNotifPanel");
+  if (!panel) return;
+  const opening = panel.style.display === "none";
+  panel.style.display = opening ? "block" : "none";
+  if (opening) renderStudentNotificationBell();
+}
+
+function markStudentNotificationRead(notificationId) {
+  if (!currentUser?.email) return;
+  const n = notifications.find((x) => String(x.id) === String(notificationId));
+  if (!n) return;
+  n.readBy = Array.isArray(n.readBy) ? n.readBy : [];
+  if (!n.readBy.includes(currentUser.email)) {
+    n.readBy.push(currentUser.email);
+    savePersisted();
+    saveToSupabase("notifications", n).catch((e) => console.warn("Supabase save failed:", e));
+  }
+  renderStudentNotificationBell();
+}
+
+function runClaimScheduleReminderSweep() {
+  if (!currentUser?.email) return;
+  const today = new Date();
+  const todayKey = today.toISOString().slice(0, 10);
+  const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+  const myApprovedClaims = allClaims.filter((c) => c.claimantEmail === currentUser.email && c.status === "Approved" && c.claimWhen);
+
+  myApprovedClaims.forEach((c) => {
+    const startDate = new Date(c.claimWhen + "T00:00:00");
+    if (Number.isNaN(startDate.getTime())) return;
+    let deadlineText = c.claimUntil;
+    if (!deadlineText) {
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + 7);
+      deadlineText = d.toISOString().slice(0, 10);
+      c.claimUntil = deadlineText;
+    }
+    const deadlineDate = new Date(deadlineText + "T23:59:59");
+    if (Number.isNaN(deadlineDate.getTime())) return;
+    const daysLeft = Math.ceil((deadlineDate - endOfToday) / 86400000);
+    if (daysLeft >= 0) {
+      const plural = daysLeft === 1 ? "" : "s";
+      addUniqueNotification(
+        `claim-reminder-${c.id}-${todayKey}`,
+        `Reminder: Claim "${c.itemName}" at ${c.claimWhere}. ${daysLeft} day${plural} left (until ${fmtDate(deadlineText)}).`,
+        daysLeft <= 1 ? "warning" : "info",
+        c.claimantEmail
+      );
+    } else {
+      addUniqueNotification(
+        `claim-expired-${c.id}`,
+        `Claim window expired for "${c.itemName}" on ${fmtDate(deadlineText)}. Please contact admin if needed.`,
+        "danger",
+        c.claimantEmail
+      );
+    }
+  });
+}
+
 function renderNotificationsList() {
   const wrap = document.getElementById("notificationsList");
   if (!wrap || !currentUser?.email) return;
@@ -3283,6 +3415,8 @@ function viewClaimDetails(cid) {
   console.log("Found claim:", c.id, c.itemName, c.status);
   const canAct = c.status === "Pending Review";
   const isLostRecovery = c.sourceType === "lost-recovery";
+  const todayIso = new Date().toISOString().split("T")[0];
+  const currentClaimDate = c.claimWhen ? String(c.claimWhen).slice(0, 10) : todayIso;
   const relatedLost = isLostRecovery ? lostReports.find((r) => Number(r.id) === Number(c.relatedLostReportId)) : null;
   const relatedLead = isLostRecovery ? lostItemLeads.find((l) => Number(l.id) === Number(c.relatedLeadId)) : null;
   document.getElementById("viewClaimBody").innerHTML = `
@@ -3320,8 +3454,9 @@ function viewClaimDetails(cid) {
       <div class="modal-section">${isLostRecovery ? "Admin Validation Notes" : "Admin Release Note to Claimant"}</div>
       ${isLostRecovery ? "" : `<label class="f-label">Where to claim *</label>
       <input class="f-input" id="admin_claim_where_${c.id}" placeholder="e.g. OSA Office, Main Building"/>
-      <label class="f-label">When to claim *</label>
-      <input class="f-input" id="admin_claim_when_${c.id}" type="datetime-local"/>`}
+      <label class="f-label">Claim start date *</label>
+      <input class="f-input" id="admin_claim_when_${c.id}" type="date" min="${todayIso}" value="${currentClaimDate}"/>
+      <div style="font-size:0.78rem;color:#667085;margin:-4px 0 8px;">Claim window is automatically set to 7 days from this date.</div>`}
       <label class="f-label">Admin Note ${isLostRecovery ? "" : "(optional)"}</label>
       <textarea class="f-input" id="admin_claim_note_${c.id}" rows="2" placeholder="${isLostRecovery ? "Validation notes for this lost item recovery..." : "Bring school ID and claim stub."}"></textarea>
       <div class="f-err" id="admin_claim_err_${c.id}"></div>
@@ -3337,7 +3472,7 @@ function viewClaimDetails(cid) {
       <div class="mt-3 p-3" style="background:#f8f9fa;border-radius:10px;">
         ${c.adminNote ? `<div style="font-size:0.88rem;margin-bottom:6px;"><strong>Admin Note:</strong> ${htmlEsc(c.adminNote)}</div>` : ""}
         ${c.claimWhere ? `<div style="font-size:0.88rem;"><strong>Claim Where:</strong> ${htmlEsc(c.claimWhere)}</div>` : ""}
-        ${c.claimWhen ? `<div style="font-size:0.88rem;"><strong>Claim When:</strong> ${fmtDate(c.claimWhen)} ${new Date(c.claimWhen).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>` : ""}
+        ${c.claimWhen ? `<div style="font-size:0.88rem;"><strong>Claim Window:</strong> ${fmtDate(c.claimWhen)}${c.claimUntil ? ` - ${fmtDate(c.claimUntil)}` : ""}</div>` : ""}
       </div>`
     }
   `;
@@ -3368,15 +3503,26 @@ function approveClaim(cid) {
     errEl.textContent = "Where and when to claim are required for approval.";
     return;
   }
+  let claimUntil = c.claimUntil || "";
+  if (!isLostRecovery && claimWhen) {
+    const base = new Date(claimWhen + "T00:00:00");
+    if (!Number.isNaN(base.getTime())) {
+      const deadline = new Date(base);
+      deadline.setDate(deadline.getDate() + 7);
+      claimUntil = deadline.toISOString().split("T")[0];
+    }
+  }
   c.status = "Approved";
   c.claimWhere = claimWhere;
   c.claimWhen = claimWhen;
+  c.claimUntil = claimUntil;
   c.adminNote = adminNote;
   const mc = myClaimsByEmail[c.claimantEmail]?.find((x) => String(x.id) === String(cid));
   if (mc) {
     mc.status = "Approved";
     mc.claimWhere = claimWhere;
     mc.claimWhen = claimWhen;
+    mc.claimUntil = claimUntil;
     mc.adminNote = adminNote;
   }
   const localMc = myClaims.find((x) => String(x.id) === String(cid));
@@ -3384,6 +3530,7 @@ function approveClaim(cid) {
     localMc.status = "Approved";
     localMc.claimWhere = claimWhere;
     localMc.claimWhen = claimWhen;
+    localMc.claimUntil = claimUntil;
     localMc.adminNote = adminNote;
   }
   const item = findItemById(c.itemId);
@@ -3418,7 +3565,17 @@ function approveClaim(cid) {
   renderMyClaims();
   closeModal("viewClaimModal");
   addAuditLog("claim.approved", { claimId: cid, itemId: c.itemId, claimantEmail: c.claimantEmail });
-  addNotification(`Your claim for "${c.itemName}" was approved.`, "success", c.claimantEmail);
+  if (!isLostRecovery && claimWhen && claimUntil) {
+    addNotification(
+      `Your claim for "${c.itemName}" was approved. Claim at ${c.claimWhere} from ${fmtDate(claimWhen)} until ${fmtDate(claimUntil)}.`,
+      "success",
+      c.claimantEmail
+    );
+  } else {
+    addNotification(`Your claim for "${c.itemName}" was approved.`, "success", c.claimantEmail);
+  }
+  runClaimScheduleReminderSweep();
+  renderStudentNotificationBell();
   showToast(`Claim APPROVED for "${c.itemName}".`, "success");
 }
 
@@ -3925,6 +4082,12 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+  document.addEventListener("click", (e) => {
+    const panel = document.getElementById("studentNotifPanel");
+    const wrap = document.querySelector(".student-notif-wrap");
+    if (!panel || !wrap) return;
+    if (!wrap.contains(e.target)) panel.style.display = "none";
+  });
 });
 
 // ===================== AI POPUP FUNCTIONS =====================

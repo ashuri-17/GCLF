@@ -101,6 +101,16 @@
     </div>
     <div class="topbar-right">
       <div class="topbar-datetime"><i class="bi bi-calendar3"></i><span id="topbarDate"></span></div>
+      <div class="student-notif-wrap">
+        <button type="button" class="student-notif-btn" id="studentNotifBtn" onclick="toggleStudentNotifications()" title="Notifications">
+          <i class="bi bi-bell-fill"></i>
+          <span class="student-notif-count" id="studentNotifCount" style="display:none;">0</span>
+        </button>
+        <div class="student-notif-panel" id="studentNotifPanel" style="display:none;">
+          <div class="student-notif-header">Claim Notifications</div>
+          <div class="student-notif-list" id="studentNotifList"></div>
+        </div>
+      </div>
       <div class="topbar-badge">STUDENT</div>
     </div>
   </div>
