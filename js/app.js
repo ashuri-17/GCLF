@@ -2680,7 +2680,7 @@ function openAdminReviewReportModal(kind, id) {
       ${detail("bi bi-clock", "Submitted", r.submittedAt)}
       <div class="admin-review-report-actions">
         <button type="button" class="btn-submit" onclick='approveFoundReport(${onclickJsString(id)})'><i class="bi bi-check-lg"></i> Approve &amp; publish</button>
-        <button type="button" class="btn-cancel" onclick='rejectFoundReport(${onclickJsString(id)})'><i class="bi bi-x-lg"></i> Reject</button>
+        <button type="button" class="btn-submit-reject" onclick='rejectFoundReport(${onclickJsString(id)})'><i class="bi bi-x-lg"></i> Reject</button>
       </div>`;
     openModal("adminReviewReportModal");
     return;
@@ -2702,7 +2702,7 @@ function openAdminReviewReportModal(kind, id) {
     const actions = canAct
       ? `<div class="admin-review-report-actions">
         <button type="button" class="btn-submit" onclick='approveLostReport(${onclickJsString(id)})'><i class="bi bi-check-lg"></i> Approve</button>
-        <button type="button" class="btn-cancel" onclick='rejectLostReport(${onclickJsString(id)})'><i class="bi bi-x-lg"></i> Reject</button>
+        <button type="button" class="btn-submit-reject" onclick='rejectLostReport(${onclickJsString(id)})'><i class="bi bi-x-lg"></i> Reject</button>
       </div>`
       : `<div class="admin-review-report-actions">
         <button type="button" class="btn-cancel" onclick="closeModal('adminReviewReportModal')">Close</button>
