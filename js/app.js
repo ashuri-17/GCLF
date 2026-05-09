@@ -3501,18 +3501,17 @@ if (document.readyState === "loading") {
 }
 
 // ===================== AI ASSISTANT FUNCTIONS =====================
-// Note: For security, API key is stored in localStorage only
-// Users need to handle CORS - options: browser extension, local dev server, or own proxy
-const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
+// Using Google AI Studio (Gemini API) - supports CORS from browser
+const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
 // Get API key from localStorage or window variable
-function getOpenAIKey() {
-  return localStorage.getItem('gclf_openai_key') || window.OPENAI_API_KEY || '';
+function getGeminiKey() {
+  return localStorage.getItem('gclf_gemini_key') || window.GEMINI_API_KEY || '';
 }
 
 // Save API key to localStorage
-function saveOpenAIKey(key) {
-  localStorage.setItem('gclf_openai_key', key);
+function saveGeminiKey(key) {
+  localStorage.setItem('gclf_gemini_key', key);
 }
 
 // Calculate analytics data for AI
@@ -3615,17 +3614,18 @@ function hideAILoading() {
   if (loading) loading.remove();
 }
 
-// Send message to OpenAI
+// Send message to Gemini API
 async function sendToAI(userMessage, systemPrompt = null) {
-  const apiKey = getOpenAIKey();
+  const apiKey = getGeminiKey();
   if (!apiKey) {
-    return "Please set your OpenAI API key first. Use the Settings option in the AI panel or set it via browser console with: saveOpenAIKey('your-key-here')";
+    return "Please set your Google AI Studio API key first. Use the Settings option in the AI panel.";
   }
   
   const analytics = getAnalyticsData();
   
-  const defaultSystemPrompt = `You are an AI analytics assistant for the Gordon College Lost & Found (GCLF) system. 
-Here is the current system data:
+  const systemInstruction = systemPrompt || `You are an AI analytics assistant for the Gordon College Lost & Found (GCLF) system.
+
+Current system data:
 - Total Items: ${analytics.totalItems} (Claimed: ${analytics.claimedItems}, Unclaimed: ${analytics.unclaimedItems}, Pending: ${analytics.pendingItems})
 - Total Claims: ${analytics.totalClaims} (Approved: ${analytics.approvedClaims}, Rejected: ${analytics.rejectedClaims}, Pending: ${analytics.pendingClaims})
 - Approval Rate: ${analytics.approvalRate}%
@@ -3636,32 +3636,37 @@ Here is the current system data:
 Provide concise, helpful insights and recommendations. Be professional but friendly.`;
 
   try {
-    const response = await fetch(OPENAI_API_URL, {
+    const url = `${GEMINI_API_URL}?key=${apiKey}`;
+    const response = await fetch(url, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: systemPrompt || defaultSystemPrompt },
-          { role: "user", content: userMessage }
-        ],
-        temperature: 0.7,
-        max_tokens: 1000
+        systemInstruction: {
+          parts: [{ text: systemInstruction }]
+        },
+        contents: [{
+          role: "user",
+          parts: [{ text: userMessage }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 1000
+        }
       })
     });
     
     if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+      const errorData = await response.json();
+      throw new Error(`API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
     }
     
     const data = await response.json();
-    return data.choices[0].message.content;
+    return data.candidates[0].content.parts[0].text;
   } catch (error) {
     console.error("AI API error:", error);
-    return "Sorry, I couldn't process your request right now. Please try again later.";
+    return "Sorry, I couldn't process your request right now. Error: " + error.message;
   }
 }
 
@@ -3728,7 +3733,7 @@ function toggleAISettings() {
     panel.style.display = panel.style.display === "none" ? "block" : "none";
     if (panel.style.display === "block") {
       // Load existing key (masked)
-      const existingKey = getOpenAIKey();
+      const existingKey = getGeminiKey();
       if (existingKey) {
         document.getElementById("aiApiKeyInput").value = existingKey;
         document.getElementById("aiSettingsStatus").textContent = "API key is saved. Click Save to update.";
@@ -3747,18 +3752,21 @@ function saveAISettings() {
     return;
   }
   
-  if (!key.startsWith("sk-")) {
-    statusDiv.textContent = "Invalid API key format. Should start with 'sk-'.";
+  // Google API keys start with AIza
+  if (!key.startsWith("AIza")) {
+    statusDiv.textContent = "Invalid API key format. Google AI Studio keys should start with 'AIza'.";
     return;
   }
   
-  saveOpenAIKey(key);
+  saveGeminiKey(key);
   statusDiv.textContent = "API key saved successfully! You can now use the AI assistant.";
+  statusDiv.style.color = "#28a745";
   keyInput.value = "";
   
   // Hide panel after 2 seconds
   setTimeout(() => {
-    document.getElementById("aiSettingsPanel").style.display = "none";
+    const panel = document.getElementById("aiSettingsPanel") || document.getElementById("aiChatSettings");
+    if (panel) panel.style.display = "none";
   }, 2000);
 }
 
@@ -3818,13 +3826,13 @@ function toggleAISettingsPopup() {
   if (settings) {
     settings.style.display = settings.style.display === "none" ? "block" : "none";
     if (settings.style.display === "block") {
-      const existingKey = getOpenAIKey();
+      const existingKey = getGeminiKey();
       if (existingKey) {
         document.getElementById("aiApiKeyInput").value = existingKey;
         document.getElementById("aiSettingsStatus").textContent = "API key is saved. Click Save to update.";
         document.getElementById("aiSettingsStatus").style.color = "#28a745";
       } else {
-        document.getElementById("aiSettingsStatus").textContent = "No API key set. Please enter your OpenAI API key.";
+        document.getElementById("aiSettingsStatus").textContent = "No API key set. Please enter your Google AI Studio API key.";
         document.getElementById("aiSettingsStatus").style.color = "#dc3545";
       }
     }
