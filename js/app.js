@@ -3501,8 +3501,9 @@ if (document.readyState === "loading") {
 }
 
 // ===================== AI ASSISTANT FUNCTIONS =====================
-// Using CORS proxy to bypass GitHub Pages CORS restrictions
-const OPENAI_API_URL = "https://corsproxy.io/?https://api.openai.com/v1/chat/completions";
+// Note: For security, API key is stored in localStorage only
+// Users need to handle CORS - options: browser extension, local dev server, or own proxy
+const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 
 // Get API key from localStorage or window variable
 function getOpenAIKey() {
@@ -3639,8 +3640,7 @@ Provide concise, helpful insights and recommendations. Be professional but frien
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-        "x-requested-with": "XMLHttpRequest"
+        "Authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
@@ -3792,14 +3792,136 @@ function toggleAIChat() {
 
 // Handle Enter key in AI chat input
 document.addEventListener("DOMContentLoaded", () => {
-  const aiInput = document.getElementById("aiChatInput");
+  const aiInput = document.getElementById("aiChatInputPopup");
   if (aiInput) {
     aiInput.addEventListener("keypress", (e) => {
       if (e.key === "Enter") {
-        sendAIChatMessage();
+        sendAIChatMessagePopup();
       }
     });
   }
 });
+
+// ===================== AI POPUP FUNCTIONS =====================
+function openAIChatPopup() {
+  openModal("aiChatModal");
+  // Hide welcome message if there are messages
+  const messagesContainer = document.getElementById("aiChatMessagesPopup");
+  const welcome = document.querySelector(".ai-welcome-popup");
+  if (messagesContainer && messagesContainer.children.length > 0 && welcome) {
+    welcome.style.display = "none";
+  }
+}
+
+function toggleAISettingsPopup() {
+  const settings = document.getElementById("aiChatSettings");
+  if (settings) {
+    settings.style.display = settings.style.display === "none" ? "block" : "none";
+    if (settings.style.display === "block") {
+      const existingKey = getOpenAIKey();
+      if (existingKey) {
+        document.getElementById("aiApiKeyInput").value = existingKey;
+        document.getElementById("aiSettingsStatus").textContent = "API key is saved. Click Save to update.";
+        document.getElementById("aiSettingsStatus").style.color = "#28a745";
+      } else {
+        document.getElementById("aiSettingsStatus").textContent = "No API key set. Please enter your OpenAI API key.";
+        document.getElementById("aiSettingsStatus").style.color = "#dc3545";
+      }
+    }
+  }
+}
+
+function addAIMessagePopup(role, content) {
+  const container = document.getElementById("aiChatMessagesPopup");
+  const welcome = document.querySelector(".ai-welcome-popup");
+  if (welcome) welcome.style.display = "none";
+  
+  const msgDiv = document.createElement("div");
+  msgDiv.className = `ai-message-popup ${role}`;
+  msgDiv.innerHTML = content;
+  container.appendChild(msgDiv);
+  
+  const body = document.getElementById("aiChatBody");
+  body.scrollTop = body.scrollHeight;
+}
+
+function showAILoadingPopup() {
+  const container = document.getElementById("aiChatMessagesPopup");
+  const loadingDiv = document.createElement("div");
+  loadingDiv.className = "ai-message-popup assistant";
+  loadingDiv.id = "aiLoadingPopup";
+  loadingDiv.innerHTML = '<div class="ai-loading"><i class="bi bi-stars"></i> AI is thinking...</div>';
+  container.appendChild(loadingDiv);
+  
+  const body = document.getElementById("aiChatBody");
+  body.scrollTop = body.scrollHeight;
+}
+
+function hideAILoadingPopup() {
+  const loading = document.getElementById("aiLoadingPopup");
+  if (loading) loading.remove();
+}
+
+async function sendAIChatMessagePopup() {
+  const input = document.getElementById("aiChatInputPopup");
+  const message = input.value.trim();
+  if (!message) return;
+  
+  addAIMessagePopup("user", message);
+  input.value = "";
+  showAILoadingPopup();
+  
+  const response = await sendToAI(message);
+  hideAILoadingPopup();
+  addAIMessagePopup("assistant", response);
+}
+
+// Override ask functions to use popup
+const originalAskAIApprovalRate = askAIApprovalRate;
+askAIApprovalRate = async function() {
+  const analytics = getAnalyticsData();
+  const message = `What's the current approval rate? ${analytics.approvedClaims} out of ${analytics.totalClaims} claims have been approved (${analytics.approvalRate}%). Is this good?`;
+  addAIMessagePopup("user", message);
+  showAILoadingPopup();
+  const response = await sendToAI(message);
+  hideAILoadingPopup();
+  addAIMessagePopup("assistant", response);
+};
+
+const originalAskAIClaimTrends = askAIClaimTrends;
+askAIClaimTrends = async function() {
+  showAILoadingPopup();
+  const analytics = getAnalyticsData();
+  const prompt = `Analyze the claim trends. Monthly data: ${JSON.stringify(analytics.monthlyTrend)}. Recent 7-day activity: ${analytics.recentClaims} claims. What trends do you see and what should we expect?`;
+  
+  const response = await sendToAI(prompt);
+  hideAILoadingPopup();
+  addAIMessagePopup("assistant", response);
+};
+
+const originalAskAIRecommendations = askAIRecommendations;
+askAIRecommendations = async function() {
+  showAILoadingPopup();
+  const analytics = getAnalyticsData();
+  const prompt = `Based on the data (Approval rate: ${analytics.approvalRate}%, Unclaimed items: ${analytics.unclaimedItems}, Pending claims: ${analytics.pendingClaims}), provide 3-5 specific actionable recommendations to improve the lost and found system efficiency.`;
+  
+  const response = await sendToAI(prompt);
+  hideAILoadingPopup();
+  addAIMessagePopup("assistant", response);
+};
+
+const originalGenerateAIAnalyticsSummary = generateAIAnalyticsSummary;
+generateAIAnalyticsSummary = async function() {
+  showAILoadingPopup();
+  const prompt = `Generate a comprehensive analytics summary with key insights and recommendations for improvement. Include:
+1. Overall performance overview
+2. Key trends and patterns
+3. Areas of concern
+4. Actionable recommendations`;
+  
+  const response = await sendToAI(prompt);
+  hideAILoadingPopup();
+  addAIMessagePopup("assistant", response);
+};
 
 

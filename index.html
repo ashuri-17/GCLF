@@ -380,52 +380,6 @@
             <div id="adminAuditLogsPanel"></div>
           </div>
         </div>
-        <div class="col-12">
-          <div style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);border-radius:12px;padding:20px;box-shadow:0 4px 15px rgba(102,126,234,0.3);">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-              <div class="ai-panel-header" onclick="toggleAIChat()">
-                <div class="toggle-bubbles">
-                  <div class="toggle-bubble" id="aiBubble1"></div>
-                  <div class="toggle-bubble" id="aiBubble2"></div>
-                  <div class="toggle-bubble" id="aiBubble3"></div>
-                </div>
-                <div class="modal-section" style="margin-top:0;color:#fff;"><i class="bi bi-robot me-2"></i> AI Analytics Assistant <span style="font-size:0.7rem;opacity:0.7;">(click to toggle)</span></div>
-              </div>
-              <div class="d-flex gap-2">
-                <button class="btn-gc" style="background:rgba(255,255,255,0.2);color:#fff;border:none;font-size:0.8rem;" onclick="event.stopPropagation();toggleAISettings()"><i class="bi bi-gear"></i> Settings</button>
-                <button class="btn-gc" style="background:rgba(255,255,255,0.2);color:#fff;border:none;" onclick="event.stopPropagation();generateAIAnalyticsSummary()"><i class="bi bi-stars"></i> Generate Summary</button>
-              </div>
-            </div>
-            <div id="aiSettingsPanel" style="display:none;margin-bottom:15px;padding:15px;background:rgba(255,255,255,0.1);border-radius:8px;">
-              <label style="color:#fff;font-size:0.85rem;">OpenAI API Key:</label>
-              <div class="d-flex gap-2 mt-1">
-                <input type="password" class="f-input" id="aiApiKeyInput" placeholder="sk-..." style="flex:1;background:rgba(255,255,255,0.95);">
-                <button class="btn-gc" style="background:#fff;color:#667eea;" onclick="saveAISettings()"><i class="bi bi-save"></i> Save</button>
-              </div>
-              <div id="aiSettingsStatus" style="color:#fff;font-size:0.8rem;margin-top:8px;"></div>
-            </div>
-            <div id="aiAssistantPanel">
-              <div class="ai-chat-container" id="aiChatContainer">
-                <div class="ai-welcome-message">
-                  <i class="bi bi-robot" style="font-size:2rem;color:rgba(255,255,255,0.8);"></i>
-                  <p style="color:rgba(255,255,255,0.9);margin-top:10px;">Hello! I'm your AI analytics assistant. Ask me about approval rates, claim trends, or request a full system summary.</p>
-                </div>
-                <div id="aiChatMessages"></div>
-              </div>
-              <div class="ai-input-area">
-                <div class="d-flex gap-2">
-                  <input type="text" class="f-input" id="aiChatInput" placeholder="Ask about analytics, e.g., 'What's the approval rate?' or 'Give me a summary'" style="flex:1;background:rgba(255,255,255,0.95);">
-                  <button class="btn-gc" style="background:#fff;color:#667eea;" onclick="sendAIChatMessage()"><i class="bi bi-send-fill"></i> Send</button>
-                </div>
-                <div class="mt-2 d-flex gap-2 flex-wrap">
-                  <button class="btn-sm" style="background:rgba(255,255,255,0.2);color:#fff;border:none;font-size:0.75rem;" onclick="askAIApprovalRate()">Approval Rate</button>
-                  <button class="btn-sm" style="background:rgba(255,255,255,0.2);color:#fff;border:none;font-size:0.75rem;" onclick="askAIClaimTrends()">Claim Trends</button>
-                  <button class="btn-sm" style="background:rgba(255,255,255,0.2);color:#fff;border:none;font-size:0.75rem;" onclick="askAIRecommendations()">Recommendations</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -542,7 +496,53 @@
     </div>
 
   </div><!-- /admin main-content -->
+
+  <!-- Floating AI Chat Button -->
+  <div class="ai-float-btn" id="aiFloatBtn" onclick="openAIChatPopup()">
+    <i class="bi bi-robot"></i>
+    <span class="ai-float-tooltip">AI Assistant</span>
+  </div>
 </div><!-- /adminApp -->
+
+<!-- AI CHAT POPUP MODAL -->
+<div class="modal-overlay" id="aiChatModal" onclick="closeOnOverlay(event,'aiChatModal')">
+  <div class="ai-chat-popup" onclick="event.stopPropagation()">
+    <div class="ai-chat-header">
+      <div class="ai-chat-title"><i class="bi bi-robot me-2"></i> AI Analytics Assistant</div>
+      <div class="ai-chat-actions">
+        <button class="ai-chat-btn" onclick="toggleAISettingsPopup()" title="Settings"><i class="bi bi-gear"></i></button>
+        <button class="ai-chat-btn" onclick="closeModal('aiChatModal')" title="Close"><i class="bi bi-x-lg"></i></button>
+      </div>
+    </div>
+    <div class="ai-chat-settings" id="aiChatSettings">
+      <label style="font-size:0.85rem;color:#666;">OpenAI API Key:</label>
+      <div class="d-flex gap-2 mt-1">
+        <input type="password" class="f-input" id="aiApiKeyInput" placeholder="Enter your OpenAI API key (sk-...)" style="flex:1;">
+        <button class="btn-gc" style="padding:6px 12px;font-size:0.85rem;" onclick="saveAISettings()"><i class="bi bi-save"></i> Save</button>
+      </div>
+      <div id="aiSettingsStatus" style="font-size:0.8rem;margin-top:8px;color:#28a745;"></div>
+    </div>
+    <div class="ai-chat-body" id="aiChatBody">
+      <div class="ai-welcome-popup">
+        <i class="bi bi-robot" style="font-size:3rem;color:#1a5fac;"></i>
+        <p style="color:#666;margin-top:15px;text-align:center;">Hello! I'm your AI analytics assistant.<br>Ask me about approval rates, claim trends, or request a full system summary.</p>
+        <div class="ai-quick-actions">
+          <button class="ai-quick-btn" onclick="askAIApprovalRate()"><i class="bi bi-graph-up"></i> Approval Rate</button>
+          <button class="ai-quick-btn" onclick="askAIClaimTrends()"><i class="bi bi-arrow-trend-up"></i> Trends</button>
+          <button class="ai-quick-btn" onclick="askAIRecommendations()"><i class="bi bi-lightbulb"></i> Recommendations</button>
+          <button class="ai-quick-btn" onclick="generateAIAnalyticsSummary()"><i class="bi bi-stars"></i> Full Summary</button>
+        </div>
+      </div>
+      <div id="aiChatMessagesPopup"></div>
+    </div>
+    <div class="ai-chat-footer">
+      <div class="d-flex gap-2">
+        <input type="text" class="f-input" id="aiChatInputPopup" placeholder="Ask about analytics..." style="flex:1;">
+        <button class="btn-gc" style="padding:8px 16px;" onclick="sendAIChatMessagePopup()"><i class="bi bi-send-fill"></i></button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- ======================== MODALS ======================== -->
 <!-- ITEM DETAIL MODAL -->
@@ -605,6 +605,6 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Custom JS -->
-<script src="js/app.js?v=2.0"></script>
+<script src="js/app.js?v=2.1"></script>
 </body>
 </html>
