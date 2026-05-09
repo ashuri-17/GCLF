@@ -362,11 +362,55 @@ function getCurrentProfile() {
     studentProfiles[currentUser.email] = {
       fullName: currentUser.name || "",
       studentId: "",
+      program: "",
+      yearLevel: "",
       courseYear: currentUser.dept || "",
       contactNumber: ""
     };
   }
   return studentProfiles[currentUser.email];
+}
+
+const PROGRAM_OPTIONS = [
+  "BSIT",
+  "BSCS",
+  "BSEMC",
+  "BSN",
+  "BSM",
+  "BSA",
+  "BSBA-FM",
+  "BSBA-HRM",
+  "BSBA-MM",
+  "BSCA",
+  "BAC",
+  "BECEd",
+  "BPAEd",
+  "BCAEd",
+  "BEEd",
+  "BSEd-Eng",
+  "BSEd-Fil",
+  "BSEd-Math",
+  "BSEd-SS",
+  "BSEd-Sci",
+  "TCP",
+  "BSHM",
+  "BSTM",
+  "Other"
+];
+
+function buildAcademicLabel(program, yearLevel, fallback = "") {
+  if (program && yearLevel) return `${program} - Year ${yearLevel}`;
+  if (program) return program;
+  return fallback || "";
+}
+
+function parseAcademicFromLegacy(courseYear = "") {
+  const normalized = String(courseYear || "").trim();
+  if (!normalized) return { program: "", yearLevel: "" };
+  const yearMatch = normalized.match(/(?:year|yr)\s*([1-4])|([1-4])(?:st|nd|rd|th)?\s*year/i);
+  const yearLevel = yearMatch ? (yearMatch[1] || yearMatch[2] || "") : "";
+  const program = PROGRAM_OPTIONS.find((p) => normalized.toUpperCase().includes(p.toUpperCase())) || "";
+  return { program, yearLevel };
 }
 
 function htmlEsc(s) {
@@ -752,9 +796,21 @@ async function loadAllDataFromSupabase() {
         studentProfiles[email] = {
           fullName: profile.fullName || profile.data?.fullName || "",
           studentId: profile.studentId || profile.data?.studentId || "",
+          program: profile.program || profile.data?.program || "",
+          yearLevel: profile.yearLevel || profile.data?.yearLevel || "",
           courseYear: profile.courseYear || profile.data?.courseYear || "",
           contactNumber: profile.contactNumber || profile.data?.contactNumber || ""
         };
+        if (!studentProfiles[email].program || !studentProfiles[email].yearLevel) {
+          const parsed = parseAcademicFromLegacy(studentProfiles[email].courseYear);
+          studentProfiles[email].program = studentProfiles[email].program || parsed.program;
+          studentProfiles[email].yearLevel = studentProfiles[email].yearLevel || parsed.yearLevel;
+        }
+        studentProfiles[email].courseYear = buildAcademicLabel(
+          studentProfiles[email].program,
+          studentProfiles[email].yearLevel,
+          studentProfiles[email].courseYear
+        );
       }
     });
     // Load audit logs and notifications
@@ -1004,7 +1060,7 @@ async function launchStudentApp() {
   setupRealTimeListeners();
   const p = getCurrentProfile();
   document.getElementById("sbStudentName").textContent = p?.fullName || currentUser.name;
-  document.getElementById("sbStudentRole").textContent = p?.courseYear || currentUser.dept;
+  document.getElementById("sbStudentRole").textContent = buildAcademicLabel(p?.program, p?.yearLevel, p?.courseYear || currentUser.dept);
   document.getElementById("mainApp").style.display = "block";
   startDateTime("topbarDate");
   updateStudentStats();
@@ -1198,42 +1254,16 @@ function updateAdminStats() {
   document.getElementById("aStatClaimed").textContent = itemsData.filter((i) => i.status === "Claimed").length;
 }
 
-const DEPARTMENTS = [
-  // College of Allied Health Studies (CAHS)
-  "BSN - Bachelor of Science in Nursing",
-  "BSM - Bachelor of Science in Midwifery",
-  // College of Business and Accountancy (CBA)
-  "BSA - Bachelor of Science in Accountancy",
-  "BSBA-FM - Bachelor of Science in Business Administration Major in Financial Management",
-  "BSBA-HRM - Bachelor of Science in Business Administration Major in Human Resource Management",
-  "BSBA-MM - Bachelor of Science in Business Administration Major in Marketing Management",
-  "BSCA - Bachelor of Science in Customs Administration",
-  // College of Computer Studies (CCS)
-  "BSCS - Bachelor of Science in Computer Science",
-  "BSEMC - Bachelor of Science in Entertainment and Multimedia Computing",
-  "BSIT - Bachelor of Science in Information Technology",
-  // College of Education, Arts, and Sciences (CEAS)
-  "BAC - Bachelor of Arts in Communication",
-  "BECEd - Bachelor of Early Childhood Education",
-  "BPAEd - Bachelor of Physical Education",
-  "BCAEd - Bachelor of Culture and Arts Education",
-  "BEEd - Bachelor of Elementary Education (General Education)",
-  "BSEd-Eng - Bachelor of Secondary Education Major in English",
-  "BSEd-Fil - Bachelor of Secondary Education Major in Filipino",
-  "BSEd-Math - Bachelor of Secondary Education Major in Mathematics",
-  "BSEd-SS - Bachelor of Secondary Education Major in Social Studies",
-  "BSEd-Sci - Bachelor of Secondary Education Major in Science",
-  "TCP - Teacher Certificate Program",
-  // College of Hospitality and Tourism Management (CHTM)
-  "BSHM - Bachelor of Science in Hospitality Management",
-  "BSTM - Bachelor of Science in Tourism Management",
-  "Other"
-];
-
 function buildStudentProfileForm() {
   const wrap = document.getElementById("studentProfileFormWrap");
   if (!wrap || !currentUser) return;
   const p = getCurrentProfile();
+  if (!p.program || !p.yearLevel) {
+    const parsed = parseAcademicFromLegacy(p.courseYear);
+    p.program = p.program || parsed.program;
+    p.yearLevel = p.yearLevel || parsed.yearLevel;
+  }
+  p.courseYear = buildAcademicLabel(p.program, p.yearLevel, p.courseYear);
   const hasProfile = p.studentId && p.contactNumber;
   
   if (hasProfile && !window.profileEditMode) {
@@ -1247,8 +1277,12 @@ function buildStudentProfileForm() {
         </div>
         <div class="profile-view-body">
           <div class="profile-view-row">
-            <span class="profile-view-label"><i class="bi bi-building"></i> Department:</span>
-            <span class="profile-view-value">${htmlEsc(p.courseYear)}</span>
+            <span class="profile-view-label"><i class="bi bi-mortarboard"></i> Program:</span>
+            <span class="profile-view-value">${htmlEsc(p.program || "Not set")}</span>
+          </div>
+          <div class="profile-view-row">
+            <span class="profile-view-label"><i class="bi bi-123"></i> Year Level:</span>
+            <span class="profile-view-value">${htmlEsc(p.yearLevel || "Not set")}</span>
           </div>
           <div class="profile-view-row">
             <span class="profile-view-label"><i class="bi bi-telephone"></i> Contact:</span>
@@ -1266,18 +1300,32 @@ function buildStudentProfileForm() {
     `;
   } else {
     // EDIT MODE
-    const deptOptions = DEPARTMENTS.map(d => `<option value="${htmlEsc(d)}" ${p.courseYear === d ? 'selected' : ''}>${htmlEsc(d)}</option>`).join('');
+    const programOptions = PROGRAM_OPTIONS.map((program) => `<option value="${htmlEsc(program)}" ${p.program === program ? "selected" : ""}>${htmlEsc(program)}</option>`).join("");
     wrap.innerHTML = `
       <div class="profile-edit-form">
         <label class="f-label">Full Name *</label>
         <input class="f-input" id="pf_fullName" value="${htmlEsc(p.fullName)}" placeholder="e.g. Juan Dela Cruz"/>
         <label class="f-label">Student ID *</label>
         <input class="f-input" id="pf_studentId" value="${htmlEsc(p.studentId)}" placeholder="e.g. 2023-BSIT-001"/>
-        <label class="f-label">Department / Course *</label>
-        <select class="f-input" id="pf_courseYear">
-          <option value="">-- Select Department --</option>
-          ${deptOptions}
-        </select>
+        <div class="row g-2">
+          <div class="col-7">
+            <label class="f-label">Program *</label>
+            <select class="f-input" id="pf_program">
+              <option value="">-- Select Program --</option>
+              ${programOptions}
+            </select>
+          </div>
+          <div class="col-5">
+            <label class="f-label">Year Level *</label>
+            <select class="f-input" id="pf_yearLevel">
+              <option value="">Year</option>
+              <option value="1" ${p.yearLevel === "1" ? "selected" : ""}>1</option>
+              <option value="2" ${p.yearLevel === "2" ? "selected" : ""}>2</option>
+              <option value="3" ${p.yearLevel === "3" ? "selected" : ""}>3</option>
+              <option value="4" ${p.yearLevel === "4" ? "selected" : ""}>4</option>
+            </select>
+          </div>
+        </div>
         <label class="f-label">Contact Number *</label>
         <input class="f-input" id="pf_contactNumber" value="${htmlEsc(p.contactNumber)}" placeholder="e.g. 09XXXXXXXXX" maxlength="11"/>
         <div class="f-err" id="pf_err"></div>
@@ -1299,15 +1347,17 @@ async function saveStudentProfile() {
   const err = document.getElementById("pf_err");
   const fullName = document.getElementById("pf_fullName").value.trim();
   const studentId = document.getElementById("pf_studentId").value.trim();
-  const courseYear = document.getElementById("pf_courseYear").value.trim();
+  const program = document.getElementById("pf_program").value.trim();
+  const yearLevel = document.getElementById("pf_yearLevel").value.trim();
   const contactNumber = document.getElementById("pf_contactNumber").value.trim();
-  if (!fullName || !studentId || !courseYear || !contactNumber) {
+  if (!fullName || !studentId || !program || !yearLevel || !contactNumber) {
     err.style.display = "block";
     err.textContent = "Please fill in all profile fields.";
     return;
   }
   err.style.display = "none";
-  const profileData = { fullName, studentId, courseYear, contactNumber };
+  const courseYear = buildAcademicLabel(program, yearLevel, "");
+  const profileData = { fullName, studentId, program, yearLevel, courseYear, contactNumber };
   studentProfiles[currentUser.email] = profileData;
   document.getElementById("sbStudentName").textContent = fullName;
   document.getElementById("sbStudentRole").textContent = courseYear;

@@ -838,7 +838,7 @@ select.f-input {
 .tab-btn:hover:not(.active) { background: rgba(26,95,172,0.1); color: var(--gc-blue); }
 /* Center profile report card on page */
 #s-profile .report-card { margin-left: auto; margin-right: auto; background: transparent; box-shadow: none; padding: 0; }
-.profile-edit-form { background: #fff; border-radius: 14px; padding: 26px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); max-width: 420px; margin: 0 auto; }
+.profile-edit-form { background: #fff; border-radius: 14px; padding: 26px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); max-width: 520px; margin: 0 auto; }
 
 /* Mobile menu button (hidden on desktop) */
 .mobile-menu-btn {
