@@ -443,6 +443,11 @@ function attrEsc(s) {
     .replace(/"/g, "&quot;");
 }
 
+/** Use inside onclick='...' (single-quoted HTML attribute). Expands to a safe JS string literal, e.g. "1777…". */
+function onclickJsString(val) {
+  return JSON.stringify(String(val));
+}
+
 function sanitizeText(s) {
   // Fix garbled UTF-8 characters that may be stored in old data
   return String(s || "")
@@ -2649,8 +2654,6 @@ function openAdminReviewReportModal(kind, id) {
     return `<div class="detail-row"><i class="${icon}"></i><span class="detail-lbl">${htmlEsc(lbl)}</span><span>${htmlEsc(v)}</span></div>`;
   }
 
-  const idLit = JSON.stringify(String(id));
-
   if (kind === "found") {
     const r = pendingFoundReports.find((x) => Number(x.id) === numId);
     if (!r) {
@@ -2676,8 +2679,8 @@ function openAdminReviewReportModal(kind, id) {
       ${detail("bi bi-envelope", "Email", r.reporterEmail)}
       ${detail("bi bi-clock", "Submitted", r.submittedAt)}
       <div class="admin-review-report-actions">
-        <button type="button" class="btn-submit" onclick="approveFoundReport(${idLit})"><i class="bi bi-check-lg"></i> Approve &amp; publish</button>
-        <button type="button" class="btn-cancel" onclick="rejectFoundReport(${idLit})"><i class="bi bi-x-lg"></i> Reject</button>
+        <button type="button" class="btn-submit" onclick='approveFoundReport(${onclickJsString(id)})'><i class="bi bi-check-lg"></i> Approve &amp; publish</button>
+        <button type="button" class="btn-cancel" onclick='rejectFoundReport(${onclickJsString(id)})'><i class="bi bi-x-lg"></i> Reject</button>
       </div>`;
     openModal("adminReviewReportModal");
     return;
@@ -2698,8 +2701,8 @@ function openAdminReviewReportModal(kind, id) {
       : `<div class="admin-review-report-placeholder"><i class="bi bi-image"></i><span>No photo</span></div>`;
     const actions = canAct
       ? `<div class="admin-review-report-actions">
-        <button type="button" class="btn-submit" onclick="approveLostReport(${idLit})"><i class="bi bi-check-lg"></i> Approve</button>
-        <button type="button" class="btn-cancel" onclick="rejectLostReport(${idLit})"><i class="bi bi-x-lg"></i> Reject</button>
+        <button type="button" class="btn-submit" onclick='approveLostReport(${onclickJsString(id)})'><i class="bi bi-check-lg"></i> Approve</button>
+        <button type="button" class="btn-cancel" onclick='rejectLostReport(${onclickJsString(id)})'><i class="bi bi-x-lg"></i> Reject</button>
       </div>`
       : `<div class="admin-review-report-actions">
         <button type="button" class="btn-cancel" onclick="closeModal('adminReviewReportModal')">Close</button>
@@ -2737,7 +2740,6 @@ function renderAdminReports() {
         const location = sanitizeText(r.location);
         const reporterName = sanitizeText(r.reporterName || r.foundBy);
         const reporterEmail = sanitizeText(r.reporterEmail || "");
-        const idJson = JSON.stringify(String(r.id));
         return `
     <div class="claim-row">
       <div class="claim-thumb">${r.image ? `<img src="${r.image}" style="width:100%;height:100%;object-fit:cover;"/>` : r.emoji || "📦"}</div>
@@ -2747,7 +2749,7 @@ function renderAdminReports() {
         <div class="claim-info-sub">By: ${htmlEsc(reporterName)} • ${htmlEsc(reporterEmail)}</div>
       </div>
       <div class="admin-actions">
-        <button type="button" class="btn-sm-action view" onclick="openAdminReviewReportModal('found', ${idJson})"><i class="bi bi-eye"></i> View</button>
+        <button type="button" class="btn-sm-action view" onclick='openAdminReviewReportModal("found", ${onclickJsString(r.id)})'><i class="bi bi-eye"></i> View</button>
         <button type="button" class="btn-sm-action approve" onclick="approveFoundReport(${r.id})"><i class="bi bi-check-lg"></i> Approve</button>
         <button type="button" class="btn-sm-action reject" onclick="rejectFoundReport(${r.id})"><i class="bi bi-x-lg"></i> Reject</button>
       </div>
@@ -2762,13 +2764,12 @@ function renderAdminReports() {
     .map((r) => {
       const st = lostReportBadgeClass(r.status);
       const lb = lostReportBadgeLabel(r.status);
-      const idJson = JSON.stringify(String(r.id));
       const actions =
         r.status === "Pending Review"
-          ? `<button type="button" class="btn-sm-action view" onclick="openAdminReviewReportModal('lost', ${idJson})"><i class="bi bi-eye"></i> View</button>
+          ? `<button type="button" class="btn-sm-action view" onclick='openAdminReviewReportModal("lost", ${onclickJsString(r.id)})'><i class="bi bi-eye"></i> View</button>
              <button type="button" class="btn-sm-action approve" onclick="approveLostReport(${r.id})"><i class="bi bi-check-lg"></i> Approve</button>
              <button type="button" class="btn-sm-action reject" onclick="rejectLostReport(${r.id})"><i class="bi bi-x-lg"></i> Reject</button>`
-          : `<button type="button" class="btn-sm-action view" onclick="openAdminReviewReportModal('lost', ${idJson})"><i class="bi bi-eye"></i> View</button>`;
+          : `<button type="button" class="btn-sm-action view" onclick='openAdminReviewReportModal("lost", ${onclickJsString(r.id)})'><i class="bi bi-eye"></i> View</button>`;
       const name = sanitizeText(r.name);
       const category = sanitizeText(r.category);
       const location = sanitizeText(r.location);
@@ -3689,7 +3690,7 @@ function viewClaimDetails(cid) {
     <div class="detail-row"><i class="bi bi-tag-fill"></i><span class="detail-lbl">Marks:</span>${htmlEsc(c.marks || "—")}</div>
     ${
       c.proofImage
-        ? `<div style="margin:10px 0 14px;"><img src="${c.proofImage}" alt="Proof" style="max-width:100%;max-height:240px;border-radius:10px;border:1px solid #e0e6f0;"/></div>`
+        ? `<div style="margin:10px 0 14px;"><img src="${attrEsc(c.proofImage)}" alt="Proof" style="max-width:100%;max-height:240px;border-radius:10px;border:1px solid #e0e6f0;"/></div>`
         : `<div class="detail-row"><i class="bi bi-image-fill"></i><span class="detail-lbl">Photo File:</span>${htmlEsc(c.photoName || "—")}</div>
            ${c.proofImageMissing ? '<div style="font-size:0.82rem;color:#b54708;margin-top:6px;">Proof image was not saved due to browser storage limit.</div>' : ""}`
     }
