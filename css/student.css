@@ -1445,6 +1445,20 @@ select.f-input {
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
+.ai-message-popup .ai-line {
+  margin-bottom: 6px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.ai-message-popup .ai-line:last-child {
+  margin-bottom: 0;
+}
+
+.ai-message-popup .ai-line.bullet {
+  padding-left: 2px;
+}
+
 /* Mobile adjustments */
 @media (max-width: 576px) {
   .ai-float-btn {

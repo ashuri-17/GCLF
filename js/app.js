@@ -3504,6 +3504,40 @@ if (document.readyState === "loading") {
 // Gemini is called via local backend endpoint to keep API keys off the client.
 const GEMINI_SERVER_MODEL = "gemini-2.0-flash";
 
+function escapeHtml(text) {
+  return String(text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function formatAIResponseForChat(raw) {
+  // Keep replies short enough for a chat bubble UI.
+  const clipped = String(raw || "").trim().slice(0, 1800);
+  const safe = escapeHtml(clipped);
+  const lines = safe.split(/\r?\n/).map((line) => line.trim());
+
+  return lines
+    .filter((line) => line.length > 0)
+    .map((line) => {
+      // Basic markdown-ish cleanup for better readability in the popup.
+      const normalized = line
+        .replace(/^#{1,6}\s*/, "")
+        .replace(/^\*+\s*|\*+\s*$/g, "")
+        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+        .replace(/`([^`]+)`/g, "<code>$1</code>");
+
+      if (/^[-*]\s+/.test(normalized)) {
+        return `<div class="ai-line bullet">${normalized.replace(/^[-*]\s+/, "• ")}</div>`;
+      }
+      if (/^\d+\.\s+/.test(normalized)) {
+        return `<div class="ai-line bullet">${normalized.replace(/^\d+\.\s+/, "• ")}</div>`;
+      }
+      return `<div class="ai-line">${normalized}</div>`;
+    })
+    .join("");
+}
+
 // Calculate analytics data for AI
 function getAnalyticsData() {
   const totalItems = itemsData.length;
@@ -3618,7 +3652,12 @@ Current system data:
 - Recent Activity (7 days): ${analytics.recentClaims} new claims, ${analytics.recentItems} new items
 - Top Locations: ${analytics.topLocations.map(l => l.location).join(", ")}
 
-Provide concise, helpful insights and recommendations. Be professional but friendly.`;
+Output rules:
+- Keep response under 120 words.
+- Use plain short sentences or bullets only.
+- Do NOT use markdown tables or long reports.
+- Focus on 3 practical actions max.
+Be professional but friendly.`;
 
   try {
     const response = await fetch("/api/ai", {
@@ -3797,7 +3836,7 @@ function addAIMessagePopup(role, content) {
   
   const msgDiv = document.createElement("div");
   msgDiv.className = `ai-message-popup ${role}`;
-  msgDiv.innerHTML = content;
+  msgDiv.innerHTML = role === "assistant" ? formatAIResponseForChat(content) : escapeHtml(content);
   container.appendChild(msgDiv);
   
   const body = document.getElementById("aiChatBody");
