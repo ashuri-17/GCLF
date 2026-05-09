@@ -3500,5 +3500,276 @@ if (document.readyState === "loading") {
   initAuth();
 }
 
+// ===================== AI ASSISTANT FUNCTIONS =====================
+const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
+
+// Get API key from localStorage or window variable
+function getOpenAIKey() {
+  return localStorage.getItem('gclf_openai_key') || window.OPENAI_API_KEY || '';
+}
+
+// Save API key to localStorage
+function saveOpenAIKey(key) {
+  localStorage.setItem('gclf_openai_key', key);
+}
+
+// Calculate analytics data for AI
+function getAnalyticsData() {
+  const totalItems = itemsData.length;
+  const claimedItems = itemsData.filter(i => i.status === "Claimed").length;
+  const unclaimedItems = itemsData.filter(i => i.status === "Unclaimed").length;
+  const pendingItems = itemsData.filter(i => i.status === "Pending").length;
+  
+  const totalClaims = allClaims.length;
+  const approvedClaims = allClaims.filter(c => c.status === "Approved").length;
+  const rejectedClaims = allClaims.filter(c => c.status === "Rejected").length;
+  const pendingClaims = allClaims.filter(c => c.status === "Pending Review").length;
+  
+  const approvalRate = totalClaims > 0 ? ((approvedClaims / totalClaims) * 100).toFixed(1) : 0;
+  const rejectionRate = totalClaims > 0 ? ((rejectedClaims / totalClaims) * 100).toFixed(1) : 0;
+  
+  const totalReports = pendingFoundReports.length + lostReports.length;
+  const pendingReports = pendingFoundReports.filter(r => r.status === "Pending Review").length;
+  
+  // Category breakdown
+  const categoryCounts = {};
+  itemsData.forEach(item => {
+    categoryCounts[item.category] = (categoryCounts[item.category] || 0) + 1;
+  });
+  
+  // Recent activity (last 7 days)
+  const last7Days = new Date();
+  last7Days.setDate(last7Days.getDate() - 7);
+  const recentClaims = allClaims.filter(c => new Date(c.submittedAt) >= last7Days).length;
+  const recentItems = itemsData.filter(i => new Date(i.date) >= last7Days).length;
+  
+  return {
+    totalItems, claimedItems, unclaimedItems, pendingItems,
+    totalClaims, approvedClaims, rejectedClaims, pendingClaims,
+    approvalRate, rejectionRate,
+    totalReports, pendingReports,
+    categoryCounts,
+    recentClaims, recentItems,
+    topLocations: getTopLocations(),
+    monthlyTrend: getMonthlyTrend()
+  };
+}
+
+function getTopLocations() {
+  const locCounts = {};
+  itemsData.forEach(item => {
+    locCounts[item.location] = (locCounts[item.location] || 0) + 1;
+  });
+  return Object.entries(locCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([loc, count]) => ({ location: loc, count }));
+}
+
+function getMonthlyTrend() {
+  const months = {};
+  const now = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months[d.toISOString().slice(0, 7)] = 0;
+  }
+  allClaims.forEach(c => {
+    const month = new Date(c.submittedAt).toISOString().slice(0, 7);
+    if (months.hasOwnProperty(month)) {
+      months[month]++;
+    }
+  });
+  return Object.entries(months).map(([month, count]) => ({ month, count }));
+}
+
+// Add message to chat
+function addAIMessage(role, content) {
+  const container = document.getElementById("aiChatMessages");
+  const welcome = document.querySelector(".ai-welcome-message");
+  if (welcome) welcome.style.display = "none";
+  
+  const msgDiv = document.createElement("div");
+  msgDiv.className = `ai-message ${role}`;
+  msgDiv.innerHTML = `
+    <div class="ai-message-header">${role === "user" ? "You" : "AI Assistant"}</div>
+    <div class="ai-message-content">${content}</div>
+  `;
+  container.appendChild(msgDiv);
+  container.scrollTop = container.scrollHeight;
+}
+
+function showAILoading() {
+  const container = document.getElementById("aiChatMessages");
+  const loadingDiv = document.createElement("div");
+  loadingDiv.className = "ai-loading";
+  loadingDiv.id = "aiLoadingIndicator";
+  loadingDiv.innerHTML = '<i class="bi bi-stars"></i> AI is thinking...';
+  container.appendChild(loadingDiv);
+  container.scrollTop = container.scrollHeight;
+}
+
+function hideAILoading() {
+  const loading = document.getElementById("aiLoadingIndicator");
+  if (loading) loading.remove();
+}
+
+// Send message to OpenAI
+async function sendToAI(userMessage, systemPrompt = null) {
+  const apiKey = getOpenAIKey();
+  if (!apiKey) {
+    return "Please set your OpenAI API key first. Use the Settings option in the AI panel or set it via browser console with: saveOpenAIKey('your-key-here')";
+  }
+  
+  const analytics = getAnalyticsData();
+  
+  const defaultSystemPrompt = `You are an AI analytics assistant for the Gordon College Lost & Found (GCLF) system. 
+Here is the current system data:
+- Total Items: ${analytics.totalItems} (Claimed: ${analytics.claimedItems}, Unclaimed: ${analytics.unclaimedItems}, Pending: ${analytics.pendingItems})
+- Total Claims: ${analytics.totalClaims} (Approved: ${analytics.approvedClaims}, Rejected: ${analytics.rejectedClaims}, Pending: ${analytics.pendingClaims})
+- Approval Rate: ${analytics.approvalRate}%
+- Rejection Rate: ${analytics.rejectionRate}%
+- Recent Activity (7 days): ${analytics.recentClaims} new claims, ${analytics.recentItems} new items
+- Top Locations: ${analytics.topLocations.map(l => l.location).join(", ")}
+
+Provide concise, helpful insights and recommendations. Be professional but friendly.`;
+
+  try {
+    const response = await fetch(OPENAI_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt || defaultSystemPrompt },
+          { role: "user", content: userMessage }
+        ],
+        temperature: 0.7,
+        max_tokens: 1000
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data.choices[0].message.content;
+  } catch (error) {
+    console.error("AI API error:", error);
+    return "Sorry, I couldn't process your request right now. Please try again later.";
+  }
+}
+
+// Chat functions
+async function sendAIChatMessage() {
+  const input = document.getElementById("aiChatInput");
+  const message = input.value.trim();
+  if (!message) return;
+  
+  addAIMessage("user", message);
+  input.value = "";
+  showAILoading();
+  
+  const response = await sendToAI(message);
+  hideAILoading();
+  addAIMessage("assistant", response);
+}
+
+async function generateAIAnalyticsSummary() {
+  showAILoading();
+  const analytics = getAnalyticsData();
+  const prompt = `Generate a comprehensive analytics summary with key insights and recommendations for improvement. Include:
+1. Overall performance overview
+2. Key trends and patterns
+3. Areas of concern
+4. Actionable recommendations`;
+  
+  const response = await sendToAI(prompt);
+  hideAILoading();
+  addAIMessage("assistant", response);
+}
+
+async function askAIApprovalRate() {
+  const analytics = getAnalyticsData();
+  const message = `What's the current approval rate? ${analytics.approvedClaims} out of ${analytics.totalClaims} claims have been approved (${analytics.approvalRate}%). Is this good?`;
+  document.getElementById("aiChatInput").value = message;
+  sendAIChatMessage();
+}
+
+async function askAIClaimTrends() {
+  showAILoading();
+  const analytics = getAnalyticsData();
+  const prompt = `Analyze the claim trends. Monthly data: ${JSON.stringify(analytics.monthlyTrend)}. Recent 7-day activity: ${analytics.recentClaims} claims. What trends do you see and what should we expect?`;
+  
+  const response = await sendToAI(prompt);
+  hideAILoading();
+  addAIMessage("assistant", response);
+}
+
+async function askAIRecommendations() {
+  showAILoading();
+  const analytics = getAnalyticsData();
+  const prompt = `Based on the data (Approval rate: ${analytics.approvalRate}%, Unclaimed items: ${analytics.unclaimedItems}, Pending claims: ${analytics.pendingClaims}), provide 3-5 specific actionable recommendations to improve the lost and found system efficiency.`;
+  
+  const response = await sendToAI(prompt);
+  hideAILoading();
+  addAIMessage("assistant", response);
+}
+
+// AI Settings functions
+function toggleAISettings() {
+  const panel = document.getElementById("aiSettingsPanel");
+  if (panel) {
+    panel.style.display = panel.style.display === "none" ? "block" : "none";
+    if (panel.style.display === "block") {
+      // Load existing key (masked)
+      const existingKey = getOpenAIKey();
+      if (existingKey) {
+        document.getElementById("aiApiKeyInput").value = existingKey;
+        document.getElementById("aiSettingsStatus").textContent = "API key is saved. Click Save to update.";
+      }
+    }
+  }
+}
+
+function saveAISettings() {
+  const keyInput = document.getElementById("aiApiKeyInput");
+  const key = keyInput.value.trim();
+  const statusDiv = document.getElementById("aiSettingsStatus");
+  
+  if (!key) {
+    statusDiv.textContent = "Please enter an API key.";
+    return;
+  }
+  
+  if (!key.startsWith("sk-")) {
+    statusDiv.textContent = "Invalid API key format. Should start with 'sk-'.";
+    return;
+  }
+  
+  saveOpenAIKey(key);
+  statusDiv.textContent = "API key saved successfully! You can now use the AI assistant.";
+  keyInput.value = "";
+  
+  // Hide panel after 2 seconds
+  setTimeout(() => {
+    document.getElementById("aiSettingsPanel").style.display = "none";
+  }, 2000);
+}
+
+// Handle Enter key in AI chat input
+document.addEventListener("DOMContentLoaded", () => {
+  const aiInput = document.getElementById("aiChatInput");
+  if (aiInput) {
+    aiInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        sendAIChatMessage();
+      }
+    });
+  }
+});
 
 
