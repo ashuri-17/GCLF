@@ -130,7 +130,7 @@ function addAuditLog(action, details = {}) {
   saveToSupabase("auditlogs", entry).catch(e => console.warn("Supabase save failed:", e));
 }
 
-function addNotification(message, type = "info", targetEmail = null) {
+function addNotification(message, type = "info", targetEmail = null, meta = {}) {
   if (!systemConfig?.notificationsEnabled) return;
   const entry = {
     id: Date.now().toString() + Math.floor(Math.random() * 1000).toString(),
@@ -138,7 +138,8 @@ function addNotification(message, type = "info", targetEmail = null) {
     type,
     targetEmail,
     createdAt: new Date().toLocaleString(),
-    readBy: []
+    readBy: [],
+    ...meta
   };
   notifications.unshift(entry);
   if (notifications.length > 800) notifications.splice(800);
@@ -2829,16 +2830,131 @@ function openReportModal() {
   openModal("reportModal");
 }
 
+function notificationSortTime(n) {
+  if (n._synthetic && n._sortMs != null) return n._sortMs;
+  const t = Date.parse(n.createdAt || "");
+  return Number.isNaN(t) ? 0 : t;
+}
+
+function parseClaimScheduleDate(value) {
+  if (value == null || value === "") return null;
+  const s = String(value).trim();
+  if (!s) return null;
+  const ymd = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (ymd) {
+    const d = new Date(ymd[1] + "T12:00:00");
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function parseClaimWindowEndDate(claim) {
+  const start = parseClaimScheduleDate(claim.claimWhen);
+  if (!start) return null;
+  if (claim.claimUntil) {
+    const end = parseClaimScheduleDate(claim.claimUntil);
+    if (end) {
+      const e = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999);
+      return e;
+    }
+    const raw = new Date(String(claim.claimUntil).trim());
+    if (!Number.isNaN(raw.getTime())) {
+      const e = new Date(raw.getFullYear(), raw.getMonth(), raw.getDate(), 23, 59, 59, 999);
+      return e;
+    }
+  }
+  const e = new Date(start);
+  e.setDate(e.getDate() + 7);
+  e.setHours(23, 59, 59, 999);
+  return e;
+}
+
+function syntheticNotifReadKey() {
+  return `gclf_syn_notif_read:${String(currentUser?.email || "").toLowerCase()}`;
+}
+
+function getSyntheticNotificationReadSet() {
+  try {
+    const raw = localStorage.getItem(syntheticNotifReadKey());
+    const arr = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(arr) ? arr.map(String) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function isSyntheticNotificationRead(id) {
+  return getSyntheticNotificationReadSet().has(String(id));
+}
+
+function markSyntheticNotificationRead(id) {
+  const set = getSyntheticNotificationReadSet();
+  set.add(String(id));
+  try {
+    localStorage.setItem(syntheticNotifReadKey(), JSON.stringify([...set]));
+  } catch (e) {
+    console.warn("Synthetic notif read persist failed:", e);
+  }
+}
+
+function buildSyntheticClaimScheduleNotifications() {
+  if (!currentUser?.email) return [];
+  const emailNorm = currentUser.email.toLowerCase();
+  return allClaims
+    .filter(
+      (c) =>
+        c.status === "Approved" &&
+        c.claimWhen &&
+        String(c.claimantEmail || "").toLowerCase() === emailNorm
+    )
+    .map((c) => {
+      const startD = parseClaimScheduleDate(c.claimWhen);
+      const endD = parseClaimWindowEndDate(c);
+      const startStr = startD ? fmtDate(startD.toISOString().slice(0, 10)) : fmtDate(c.claimWhen);
+      const endStr = endD
+        ? fmtDate(endD.toISOString().slice(0, 10))
+        : c.claimUntil
+          ? fmtDate(c.claimUntil)
+          : "—";
+      const where = c.claimWhere || "the location noted by admin";
+      const sortMs =
+        Date.parse(c.submittedAt || "") ||
+        (startD ? startD.getTime() : 0) ||
+        Date.now();
+      return {
+        id: `syn-claim-${c.id}`,
+        _synthetic: true,
+        message: `Pick up "${c.itemName}" at ${where}. Claim window: ${startStr} – ${endStr}.`,
+        type: "info",
+        targetEmail: c.claimantEmail,
+        createdAt: c.submittedAt || new Date().toLocaleString(),
+        readBy: [],
+        _sortMs: sortMs
+      };
+    });
+}
+
 function getStudentNotifications() {
   if (!currentUser?.email) return [];
-  return notifications
-    .filter((n) => !n.targetEmail || n.targetEmail === currentUser.email)
-    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  const emailNorm = currentUser.email.toLowerCase();
+  const real = notifications.filter((n) => !n.targetEmail || String(n.targetEmail).toLowerCase() === emailNorm);
+  const refIds = new Set(real.filter((n) => n.refClaimId).map((n) => String(n.refClaimId)));
+  const synthetic = buildSyntheticClaimScheduleNotifications().filter((s) => {
+    const cid = String(s.id).replace(/^syn-claim-/, "");
+    return !refIds.has(cid);
+  });
+  const merged = [...real, ...synthetic];
+  merged.sort((a, b) => notificationSortTime(b) - notificationSortTime(a));
+  return merged;
 }
 
 function getUnreadNotificationCount() {
   if (!currentUser?.email) return 0;
-  return getStudentNotifications().filter((n) => !(Array.isArray(n.readBy) && n.readBy.includes(currentUser.email))).length;
+  return getStudentNotifications().filter((n) => {
+    if (n._synthetic) return !isSyntheticNotificationRead(n.id);
+    return !(Array.isArray(n.readBy) && n.readBy.includes(currentUser.email));
+  }).length;
 }
 
 function renderStudentNotificationBell() {
@@ -2856,8 +2972,11 @@ function renderStudentNotificationBell() {
   }
   listEl.innerHTML = mine
     .map((n) => {
-      const isRead = Array.isArray(n.readBy) && n.readBy.includes(currentUser.email);
-      return `<div class="student-notif-item ${isRead ? "" : "unread"}" onclick="markStudentNotificationRead('${n.id}')">
+      const isRead = n._synthetic
+        ? isSyntheticNotificationRead(n.id)
+        : Array.isArray(n.readBy) && n.readBy.includes(currentUser.email);
+      const safeId = String(n.id).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+      return `<div class="student-notif-item ${isRead ? "" : "unread"}" onclick="markStudentNotificationRead('${safeId}')">
         <div>${htmlEsc(n.message)}</div>
         <div class="student-notif-item-time">${htmlEsc(n.createdAt || "—")}</div>
       </div>`;
@@ -2875,6 +2994,12 @@ function toggleStudentNotifications() {
 
 function markStudentNotificationRead(notificationId) {
   if (!currentUser?.email) return;
+  const idStr = String(notificationId);
+  if (idStr.startsWith("syn-claim-")) {
+    markSyntheticNotificationRead(idStr);
+    renderStudentNotificationBell();
+    return;
+  }
   const n = notifications.find((x) => String(x.id) === String(notificationId));
   if (!n) return;
   n.readBy = Array.isArray(n.readBy) ? n.readBy : [];
@@ -2890,12 +3015,15 @@ function runClaimScheduleReminderSweep() {
   if (!currentUser?.email) return;
   const today = new Date();
   const todayKey = today.toISOString().slice(0, 10);
-  const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
-  const myApprovedClaims = allClaims.filter((c) => c.claimantEmail === currentUser.email && c.status === "Approved" && c.claimWhen);
+  const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+  const emailNorm = currentUser.email.toLowerCase();
+  const myApprovedClaims = allClaims.filter(
+    (c) => String(c.claimantEmail || "").toLowerCase() === emailNorm && c.status === "Approved" && c.claimWhen
+  );
 
   myApprovedClaims.forEach((c) => {
-    const startDate = new Date(c.claimWhen + "T00:00:00");
-    if (Number.isNaN(startDate.getTime())) return;
+    const startDate = parseClaimScheduleDate(c.claimWhen);
+    if (!startDate) return;
     let deadlineText = c.claimUntil;
     if (!deadlineText) {
       const d = new Date(startDate);
@@ -2903,14 +3031,14 @@ function runClaimScheduleReminderSweep() {
       deadlineText = d.toISOString().slice(0, 10);
       c.claimUntil = deadlineText;
     }
-    const deadlineDate = new Date(deadlineText + "T23:59:59");
-    if (Number.isNaN(deadlineDate.getTime())) return;
+    const deadlineDate = parseClaimWindowEndDate(c);
+    if (!deadlineDate || Number.isNaN(deadlineDate.getTime())) return;
     const daysLeft = Math.ceil((deadlineDate - endOfToday) / 86400000);
     if (daysLeft >= 0) {
       const plural = daysLeft === 1 ? "" : "s";
       addUniqueNotification(
         `claim-reminder-${c.id}-${todayKey}`,
-        `Reminder: Claim "${c.itemName}" at ${c.claimWhere}. ${daysLeft} day${plural} left (until ${fmtDate(deadlineText)}).`,
+        `Reminder: Claim "${c.itemName}" at ${c.claimWhere || "the pickup location"}. ${daysLeft} day${plural} left (until ${fmtDate(deadlineText)}).`,
         daysLeft <= 1 ? "warning" : "info",
         c.claimantEmail
       );
@@ -3565,14 +3693,16 @@ function approveClaim(cid) {
   renderMyClaims();
   closeModal("viewClaimModal");
   addAuditLog("claim.approved", { claimId: cid, itemId: c.itemId, claimantEmail: c.claimantEmail });
+  const approveMeta = { refClaimId: String(cid) };
   if (!isLostRecovery && claimWhen && claimUntil) {
     addNotification(
       `Your claim for "${c.itemName}" was approved. Claim at ${c.claimWhere} from ${fmtDate(claimWhen)} until ${fmtDate(claimUntil)}.`,
       "success",
-      c.claimantEmail
+      c.claimantEmail,
+      approveMeta
     );
   } else {
-    addNotification(`Your claim for "${c.itemName}" was approved.`, "success", c.claimantEmail);
+    addNotification(`Your claim for "${c.itemName}" was approved.`, "success", c.claimantEmail, approveMeta);
   }
   runClaimScheduleReminderSweep();
   renderStudentNotificationBell();
