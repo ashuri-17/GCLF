@@ -1234,7 +1234,7 @@ function studentNav(page, el) {
     renderDashboardMixed();
   }
   if (page === "profile") buildStudentProfileForm();
-  if (page === "founditems") renderItems();
+  if (page === "foundItems") renderItems();
   if (page === "lostItems") {
     renderPublicLostItems();
     renderMyFoundLeads();
@@ -2002,7 +2002,7 @@ async function submitFoundItem(cid, isAdmin) {
   buildReportForm(cid, isAdmin);
   if (!isAdmin) {
     renderMyFoundReportsList();
-    studentNav("founditems", document.querySelector('#studentSidebar .sb-item[data-page="founditems"]'));
+    studentNav("foundItems", document.querySelector('#studentSidebar .sb-item[data-page="foundItems"]'));
   }
 }
 
