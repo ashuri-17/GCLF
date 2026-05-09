@@ -1173,6 +1173,93 @@ select.f-input {
   50% { opacity: 1; }
 }
 
+/* ===================== TOGGLE SWITCH (BUBBLES) ===================== */
+.toggle-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: relative;
+  width: 50px;
+  height: 26px;
+  background: rgba(255,255,255,0.3);
+  border-radius: 34px;
+  transition: 0.3s;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.toggle-slider:before {
+  content: "";
+  position: absolute;
+  height: 20px;
+  width: 20px;
+  left: 3px;
+  bottom: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: 0.3s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: rgba(255,255,255,0.5);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(24px);
+}
+
+.toggle-bubbles {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.toggle-bubble {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.3);
+  transition: 0.3s;
+  animation: bubblePulse 2s infinite;
+}
+
+.toggle-bubble.active {
+  background: #fff;
+  box-shadow: 0 0 10px rgba(255,255,255,0.8);
+}
+
+.toggle-bubble:nth-child(2) { animation-delay: 0.2s; }
+.toggle-bubble:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes bubblePulse {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.2); opacity: 1; }
+}
+
+/* AI Panel Toggle Header */
+.ai-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  padding: 8px 0;
+}
+
+.ai-panel-header:hover .toggle-bubble {
+  background: rgba(255,255,255,0.5);
+}
+
 /* Tablet (577px - 768px) */
 @media (min-width: 577px) and (max-width: 768px) {
   :root { --sidebar-w: 68px; }

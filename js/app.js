@@ -3501,7 +3501,8 @@ if (document.readyState === "loading") {
 }
 
 // ===================== AI ASSISTANT FUNCTIONS =====================
-const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
+// Using CORS proxy to bypass GitHub Pages CORS restrictions
+const OPENAI_API_URL = "https://corsproxy.io/?https://api.openai.com/v1/chat/completions";
 
 // Get API key from localStorage or window variable
 function getOpenAIKey() {
@@ -3638,7 +3639,8 @@ Provide concise, helpful insights and recommendations. Be professional but frien
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
+        "Authorization": `Bearer ${apiKey}`,
+        "x-requested-with": "XMLHttpRequest"
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
@@ -3758,6 +3760,34 @@ function saveAISettings() {
   setTimeout(() => {
     document.getElementById("aiSettingsPanel").style.display = "none";
   }, 2000);
+}
+
+// Toggle AI Chat panel
+function toggleAIChat() {
+  const panel = document.getElementById("aiAssistantPanel");
+  const bubbles = document.querySelectorAll(".toggle-bubble");
+  
+  if (panel) {
+    const isHidden = panel.style.display === "none";
+    panel.style.display = isHidden ? "block" : "none";
+    
+    // Animate bubbles
+    bubbles.forEach((bubble, index) => {
+      setTimeout(() => {
+        if (isHidden) {
+          bubble.classList.add("active");
+        } else {
+          bubble.classList.remove("active");
+        }
+      }, index * 100);
+    });
+    
+    // Also hide settings panel when collapsing
+    if (!isHidden) {
+      const settingsPanel = document.getElementById("aiSettingsPanel");
+      if (settingsPanel) settingsPanel.style.display = "none";
+    }
+  }
 }
 
 // Handle Enter key in AI chat input
