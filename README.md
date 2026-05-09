@@ -1,6 +1,6 @@
 # GCLF - Gordon College Lost & Found
 
-This project now includes a built-in server-side Gemini AI integration.
+This project includes built-in server-side AI integration with provider switching.
 
 Users can open the website normally. API keys stay on the server.
 
@@ -9,15 +9,24 @@ Users can open the website normally. API keys stay on the server.
 1. Push this repo to GitHub.
 2. Create a Render account and click **New +** -> **Blueprint**.
 3. Select this repository (Render auto-detects `render.yaml`).
-4. Set `GEMINI_API_KEY` in Render Environment Variables.
+4. Set environment variables in Render (see provider options below).
 5. Deploy.
 
 After deploy, open your Render URL. No local setup needed for end users.
 
-## Required Environment Variables
+## AI Provider Settings
 
+- `AI_PROVIDER` = `gemini` or `openrouter`
+
+If `AI_PROVIDER=gemini`:
 - `GEMINI_API_KEY` (required)
 - `GEMINI_MODEL` (optional, default: `gemini-2.0-flash`)
+
+If `AI_PROVIDER=openrouter`:
+- `OPENROUTER_API_KEY` (required)
+- `OPENROUTER_MODEL` (optional, default: `openai/gpt-oss-120b:free`)
+
+General:
 - `PORT` (set automatically by Render)
 
 ## Local Run (for development only)
@@ -43,6 +52,7 @@ Expected response:
 ```json
 {
   "ok": true,
+  "provider": "gemini",
   "aiConfigured": true,
   "model": "gemini-2.0-flash"
 }

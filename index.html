@@ -510,17 +510,8 @@
     <div class="ai-chat-header">
       <div class="ai-chat-title"><i class="bi bi-robot me-2"></i> AI Analytics Assistant</div>
       <div class="ai-chat-actions">
-        <button class="ai-chat-btn" onclick="toggleAISettingsPopup()" title="Settings"><i class="bi bi-gear"></i></button>
         <button class="ai-chat-btn" onclick="closeModal('aiChatModal')" title="Close"><i class="bi bi-x-lg"></i></button>
       </div>
-    </div>
-    <div class="ai-chat-settings" id="aiChatSettings">
-      <label style="font-size:0.85rem;color:#666;">AI Provider Settings:</label>
-      <div class="d-flex gap-2 mt-1">
-        <input type="text" class="f-input" id="aiApiKeyInput" value="Using server-side Gemini model (configured in .env)" readonly style="flex:1;">
-        <button class="btn-gc" style="padding:6px 12px;font-size:0.85rem;" onclick="saveAISettings()"><i class="bi bi-check2-circle"></i> OK</button>
-      </div>
-      <div id="aiSettingsStatus" style="font-size:0.8rem;margin-top:8px;color:#28a745;"></div>
     </div>
     <div class="ai-chat-body" id="aiChatBody">
       <div class="ai-welcome-popup">

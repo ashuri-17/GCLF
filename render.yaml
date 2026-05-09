@@ -6,9 +6,15 @@ services:
     buildCommand: npm install
     startCommand: npm start
     envVars:
+      - key: AI_PROVIDER
+        value: gemini
       - key: GEMINI_API_KEY
         sync: false
       - key: GEMINI_MODEL
         value: gemini-2.0-flash
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: openai/gpt-oss-120b:free
       - key: NODE_VERSION
         value: 20
