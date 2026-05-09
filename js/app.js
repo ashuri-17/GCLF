@@ -3659,14 +3659,21 @@ Provide concise, helpful insights and recommendations. Be professional but frien
     
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(`API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+      const errorMsg = errorData.error?.message || 'Unknown error';
+      
+      // Check for rate limit (429) errors
+      if (response.status === 429 || errorMsg.includes("Quota exceeded")) {
+        throw new Error("Rate limit exceeded. Google AI Studio free tier has limits. Please wait a minute and try again, or check your quota at https://ai.google.dev/gemini-api/docs/rate-limits");
+      }
+      
+      throw new Error(`API error: ${response.status} - ${errorMsg}`);
     }
     
     const data = await response.json();
     return data.candidates[0].content.parts[0].text;
   } catch (error) {
     console.error("AI API error:", error);
-    return "Sorry, I couldn't process your request right now. Error: " + error.message;
+    return "Sorry, I couldn't process your request. " + error.message;
   }
 }
 
