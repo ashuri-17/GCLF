@@ -347,6 +347,19 @@
         </div>
       </div>
 
+      <div class="row g-3 mb-3" id="adminAiInsightsRow">
+        <div class="col-12">
+          <div class="admin-ai-insights-card" id="adminAiInsightsCard">
+            <div class="admin-ai-insights-head">
+              <div><i class="bi bi-stars me-2"></i><strong>AI-powered summary</strong></div>
+              <button type="button" class="btn-ai-refresh" id="adminAiInsightsRefresh" onclick="refreshAdminAiInsights({ force: true })">Refresh</button>
+            </div>
+            <p class="admin-ai-insights-sub">Generated from live dashboard metrics when you open Overview. Cached a few minutes to reduce API usage.</p>
+            <div id="adminAiInsightsBody" class="admin-ai-insights-body"></div>
+          </div>
+        </div>
+      </div>
+
       <div class="row g-3">
         <div class="col-12 col-md-6">
           <div style="background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
@@ -507,44 +520,7 @@
     </div>
 
   </div><!-- /admin main-content -->
-
-  <!-- Floating AI Chat Button -->
-  <div class="ai-float-btn" id="aiFloatBtn" onclick="openAIChatPopup()">
-    <i class="bi bi-robot"></i>
-    <span class="ai-float-tooltip">AI Assistant</span>
-  </div>
 </div><!-- /adminApp -->
-
-<!-- AI CHAT POPUP MODAL -->
-<div class="modal-overlay" id="aiChatModal" onclick="closeOnOverlay(event,'aiChatModal')">
-  <div class="ai-chat-popup" onclick="event.stopPropagation()">
-    <div class="ai-chat-header">
-      <div class="ai-chat-title"><i class="bi bi-robot me-2"></i> AI Analytics Assistant</div>
-      <div class="ai-chat-actions">
-        <button class="ai-chat-btn" onclick="closeModal('aiChatModal')" title="Close"><i class="bi bi-x-lg"></i></button>
-      </div>
-    </div>
-    <div class="ai-chat-body" id="aiChatBody">
-      <div class="ai-welcome-popup">
-        <i class="bi bi-robot" style="font-size:3rem;color:#1a5fac;"></i>
-        <p style="color:#666;margin-top:15px;text-align:center;">Hello! I'm your AI analytics assistant.<br>Ask me about approval rates, claim trends, or request a full system summary.</p>
-        <div class="ai-quick-actions">
-          <button class="ai-quick-btn" onclick="askAIApprovalRate()"><i class="bi bi-graph-up"></i> Approval Rate</button>
-          <button class="ai-quick-btn" onclick="askAIClaimTrends()"><i class="bi bi-arrow-trend-up"></i> Trends</button>
-          <button class="ai-quick-btn" onclick="askAIRecommendations()"><i class="bi bi-lightbulb"></i> Recommendations</button>
-          <button class="ai-quick-btn" onclick="generateAIAnalyticsSummary()"><i class="bi bi-stars"></i> Full Summary</button>
-        </div>
-      </div>
-      <div id="aiChatMessagesPopup"></div>
-    </div>
-    <div class="ai-chat-footer">
-      <div class="d-flex gap-2">
-        <input type="text" class="f-input" id="aiChatInputPopup" placeholder="Ask about analytics..." style="flex:1;">
-        <button class="btn-gc" style="padding:8px 16px;" onclick="sendAIChatMessagePopup()"><i class="bi bi-send-fill"></i></button>
-      </div>
-    </div>
-  </div>
-</div>
 
 <!-- ======================== MODALS ======================== -->
 <!-- ITEM DETAIL MODAL -->
@@ -618,6 +594,6 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Custom JS -->
-<script src="js/app.js?v=2.5"></script>
+<script src="js/app.js?v=2.6"></script>
 </body>
 </html>

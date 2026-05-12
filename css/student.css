@@ -745,6 +745,108 @@ img { max-width: 100%; height: auto; }
 }
 .admin-review-report-actions .btn-submit-reject:hover { background: #b02a37; color: #fff; }
 
+/* Admin embedded AI summary (no chat UI) */
+.admin-ai-insights-card {
+  background: linear-gradient(135deg, #f8fbff 0%, #eef4fc 100%);
+  border: 1px solid #c5d7f0;
+  border-radius: 14px;
+  padding: 18px 20px;
+  box-shadow: 0 2px 12px rgba(26, 95, 172, 0.08);
+}
+.admin-ai-insights-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+  color: #1a2a4a;
+  font-size: 1rem;
+}
+.btn-ai-refresh {
+  border: 1px solid var(--gc-blue);
+  color: var(--gc-blue);
+  background: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.btn-ai-refresh:hover {
+  background: var(--gc-blue);
+  color: #fff;
+}
+.admin-ai-insights-sub {
+  font-size: 0.8rem;
+  color: #667085;
+  margin: 0 0 12px;
+}
+.admin-ai-insights-body {
+  font-size: 0.9rem;
+  color: #333;
+  line-height: 1.55;
+}
+.admin-ai-insights-prose .ai-line {
+  margin-bottom: 6px;
+}
+.admin-ai-insights-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #667085;
+  font-size: 0.9rem;
+}
+.admin-ai-insights-error {
+  color: #842029;
+  background: #f8d7da;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+.admin-mini-trend-wrap {
+  margin-top: 14px;
+}
+.admin-mini-trend-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 110px;
+  padding: 10px 8px 4px;
+  background: #f5f8ff;
+  border-radius: 10px;
+}
+.ai-mini-bar-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  min-width: 0;
+}
+.ai-mini-bar-track {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-height: 0;
+}
+.ai-mini-bar {
+  width: 100%;
+  max-width: 36px;
+  border-radius: 6px 6px 2px 2px;
+  background: linear-gradient(180deg, #4a8fd4, #1a5fac);
+  min-height: 4px;
+}
+.ai-mini-bar-lbl {
+  font-size: 0.65rem;
+  color: #667085;
+  margin-top: 6px;
+  white-space: nowrap;
+}
+
 /* ===================== ADMIN HEADER ===================== */
 .admin-header-bar {
   background: linear-gradient(135deg, #0d3c73, #1a5fac);

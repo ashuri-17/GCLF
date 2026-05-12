@@ -1140,6 +1140,10 @@ async function launchAdminApp() {
   renderAdminAuditLogs();
   buildReportForm("adminAddItemForm", true);
   initSidebarToggle();
+  setTimeout(() => {
+    const active = document.querySelector("#adminApp .page-section.active");
+    if (active?.id === "a-overview") refreshAdminAiInsights();
+  }, 160);
 }
 
 async function doLogout() {
@@ -1276,6 +1280,7 @@ function adminNav(page, el) {
     renderAdminOverviewLists();
     renderAdminAnalyticsPanel();
     renderAdminAuditLogs();
+    refreshAdminAiInsights();
   }
   if (page === "manageItems") renderAdminItems();
   if (page === "manageClaims") renderAdminClaims();
@@ -3212,6 +3217,18 @@ function renderAdminAnalyticsPanel() {
     byCategory[k] = (byCategory[k] || 0) + 1;
   });
   const topCats = Object.entries(byCategory).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const a = getAnalyticsData();
+  const maxM = Math.max(1, ...a.monthlyTrend.map((t) => t.count));
+  const trendBars = a.monthlyTrend
+    .map(({ month, count }) => {
+      const hPx = Math.max(6, Math.round((count / maxM) * 88));
+      const label = String(month).replace(/^\d{4}-/, "");
+      return `<div class="ai-mini-bar-wrap" title="${htmlEsc(month)}: ${count} claims">
+        <div class="ai-mini-bar-track"><div class="ai-mini-bar" style="height:${hPx}px;"></div></div>
+        <span class="ai-mini-bar-lbl">${htmlEsc(label)}</span>
+      </div>`;
+    })
+    .join("");
   wrap.innerHTML = `
     <div class="row g-2 mt-1 mb-2">
       <div class="col-6 col-md-3"><div class="stat-card"><div><div class="stat-num">${resolved}</div><div class="stat-lbl">Resolved Items</div></div></div></div>
@@ -3221,6 +3238,10 @@ function renderAdminAnalyticsPanel() {
     </div>
     <div style="font-size:.86rem;color:#667085;">
       <strong>Top Categories:</strong> ${topCats.length ? topCats.map(([k, v]) => `${htmlEsc(k)} (${v})`).join(" • ") : "No data yet"}
+    </div>
+    <div class="admin-mini-trend-wrap">
+      <div style="font-size:.82rem;font-weight:600;color:#1a2a4a;margin-bottom:8px;"><i class="bi bi-bar-chart-line me-1"></i>Claims by month (last 6)</div>
+      <div class="admin-mini-trend-bars">${trendBars}</div>
     </div>`;
 }
 
@@ -3325,6 +3346,7 @@ function importBackupJson(event) {
       renderAdminReports();
       renderAdminAnalyticsPanel();
       renderAdminAuditLogs();
+      refreshAdminAiInsights({ force: true });
       renderItems();
       renderPublicLostItems();
       renderLostReportsList();
@@ -4026,8 +4048,6 @@ if (document.readyState === "loading") {
 }
 
 // ===================== AI ASSISTANT FUNCTIONS =====================
-// Gemini is called via local backend endpoint to keep API keys off the client.
-const GEMINI_SERVER_MODEL = "gemini-2.0-flash";
 
 function escapeHtml(text) {
   return String(text || "")
@@ -4037,7 +4057,7 @@ function escapeHtml(text) {
 }
 
 function formatAIResponseForChat(raw) {
-  // Keep replies short enough for a chat bubble UI.
+  // Short prose / bullets for embedded admin summary (and legacy formatting).
   const clipped = String(raw || "").trim().slice(0, 1800);
   const safe = escapeHtml(clipped);
   const lines = safe.split(/\r?\n/).map((line) => line.trim());
@@ -4132,42 +4152,14 @@ function getMonthlyTrend() {
   return Object.entries(months).map(([month, count]) => ({ month, count }));
 }
 
-// Add message to chat
-function addAIMessage(role, content) {
-  const container = document.getElementById("aiChatMessages");
-  const welcome = document.querySelector(".ai-welcome-message");
-  if (welcome) welcome.style.display = "none";
-  
-  const msgDiv = document.createElement("div");
-  msgDiv.className = `ai-message ${role}`;
-  msgDiv.innerHTML = `
-    <div class="ai-message-header">${role === "user" ? "You" : "AI Assistant"}</div>
-    <div class="ai-message-content">${content}</div>
-  `;
-  container.appendChild(msgDiv);
-  container.scrollTop = container.scrollHeight;
-}
+// ===================== AI (embedded admin summary; keys stay on server) =====================
 
-function showAILoading() {
-  const container = document.getElementById("aiChatMessages");
-  const loadingDiv = document.createElement("div");
-  loadingDiv.className = "ai-loading";
-  loadingDiv.id = "aiLoadingIndicator";
-  loadingDiv.innerHTML = '<span class="ai-dot-loader" aria-label="AI is thinking"><span>.</span><span>.</span><span>.</span></span>';
-  container.appendChild(loadingDiv);
-  container.scrollTop = container.scrollHeight;
-}
-
-function hideAILoading() {
-  const loading = document.getElementById("aiLoadingIndicator");
-  if (loading) loading.remove();
-}
-
-// Send message to Gemini API
 async function sendToAI(userMessage, systemPrompt = null) {
   const analytics = getAnalyticsData();
-  
-  const systemInstruction = systemPrompt || `You are an AI analytics assistant for the Gordon College Lost & Found (GCLF) system.
+
+  const systemInstruction =
+    systemPrompt ||
+    `You are an AI analytics assistant for the Gordon College Lost & Found (GCLF) system.
 
 Current system data:
 - Total Items: ${analytics.totalItems} (Claimed: ${analytics.claimedItems}, Unclaimed: ${analytics.unclaimedItems}, Pending: ${analytics.pendingItems})
@@ -4175,7 +4167,7 @@ Current system data:
 - Approval Rate: ${analytics.approvalRate}%
 - Rejection Rate: ${analytics.rejectionRate}%
 - Recent Activity (7 days): ${analytics.recentClaims} new claims, ${analytics.recentItems} new items
-- Top Locations: ${analytics.topLocations.map(l => l.location).join(", ")}
+- Top Locations: ${analytics.topLocations.map((l) => l.location).join(", ")}
 
 Output rules:
 - Keep response under 120 words.
@@ -4192,8 +4184,7 @@ Be professional but friendly.`;
       },
       body: JSON.stringify({
         message: userMessage,
-        systemInstruction,
-        model: GEMINI_SERVER_MODEL
+        systemInstruction
       })
     });
 
@@ -4203,7 +4194,7 @@ Be professional but friendly.`;
     }
 
     const text = String(data?.text || "").trim();
-    if (!text) throw new Error("Gemini returned an empty response.");
+    if (!text) throw new Error("Model returned an empty response.");
     return text;
   } catch (error) {
     console.error("AI API error:", error);
@@ -4211,125 +4202,86 @@ Be professional but friendly.`;
   }
 }
 
-// Chat functions
-async function sendAIChatMessage() {
-  const input = document.getElementById("aiChatInput");
-  const message = input.value.trim();
-  if (!message) return;
-  
-  addAIMessage("user", message);
-  input.value = "";
-  showAILoading();
-  
-  const response = await sendToAI(message);
-  hideAILoading();
-  addAIMessage("assistant", response);
+const ADMIN_AI_INSIGHTS_CACHE_MS = 8 * 60 * 1000;
+let _adminAiInsightsInFlight = false;
+let _adminAiInsightsCacheAt = 0;
+let _adminAiInsightsCacheKey = "";
+let _adminAiInsightsCacheHtml = "";
+
+function adminAiInsightsCacheKeyFromData() {
+  const a = getAnalyticsData();
+  return [
+    a.totalItems,
+    a.totalClaims,
+    a.pendingClaims,
+    a.approvedClaims,
+    a.rejectedClaims,
+    a.pendingReports,
+    a.unclaimedItems,
+    a.recentClaims,
+    a.recentItems,
+    String(a.approvalRate),
+    JSON.stringify(a.monthlyTrend),
+    JSON.stringify(a.categoryCounts || {})
+  ].join("|");
 }
 
-async function generateAIAnalyticsSummary() {
-  showAILoading();
+async function refreshAdminAiInsights(opts = {}) {
+  const force = Boolean(opts && opts.force);
+  const body = document.getElementById("adminAiInsightsBody");
+  const row = document.getElementById("adminAiInsightsRow");
+  if (!body) return;
+  if (!canPerform("admin.analytics.view")) {
+    if (row) row.style.display = "none";
+    return;
+  }
+  if (row) row.style.display = "";
+
+  const key = adminAiInsightsCacheKeyFromData();
+  if (
+    !force &&
+    _adminAiInsightsCacheHtml &&
+    key === _adminAiInsightsCacheKey &&
+    Date.now() - _adminAiInsightsCacheAt < ADMIN_AI_INSIGHTS_CACHE_MS
+  ) {
+    body.innerHTML = _adminAiInsightsCacheHtml;
+    return;
+  }
+  if (_adminAiInsightsInFlight && !force) return;
+  _adminAiInsightsInFlight = true;
+
+  body.innerHTML = `<div class="admin-ai-insights-loading"><span class="ai-dot-loader" aria-label="Generating"><span>.</span><span>.</span><span>.</span></span><span> Generating summary…</span></div>`;
+
   const analytics = getAnalyticsData();
-  const prompt = `Generate a comprehensive analytics summary with key insights and recommendations for improvement. Include:
-1. Overall performance overview
-2. Key trends and patterns
-3. Areas of concern
-4. Actionable recommendations`;
-  
-  const response = await sendToAI(prompt);
-  hideAILoading();
-  addAIMessage("assistant", response);
-}
+  const userMsg = `Metrics JSON (use only these facts):\n${JSON.stringify(analytics)}`;
+  const systemInstruction = `You write an automatic dashboard executive summary for GCLF (Gordon College Lost & Found) admins.
+Rules:
+- Do NOT greet, chat, or ask questions. No "I'm an AI".
+- Output 5–8 lines; each line starts with "- " (markdown bullet). Each line max 130 characters.
+- Use only numbers from the JSON; do not invent campus policies or data.
+- Mention backlog if pending claims or pending reports are notable.
+- Mention approval % and recent 7-day activity vs monthly trend when useful.
+- End with one clear operational next step (still as a bullet).
+- If everything is zeros or near-empty, say the dataset is still light and suggest populating test data.`;
 
-async function askAIApprovalRate() {
-  const analytics = getAnalyticsData();
-  const message = `What's the current approval rate? ${analytics.approvedClaims} out of ${analytics.totalClaims} claims have been approved (${analytics.approvalRate}%). Is this good?`;
-  document.getElementById("aiChatInput").value = message;
-  sendAIChatMessage();
-}
-
-async function askAIClaimTrends() {
-  showAILoading();
-  const analytics = getAnalyticsData();
-  const prompt = `Analyze the claim trends. Monthly data: ${JSON.stringify(analytics.monthlyTrend)}. Recent 7-day activity: ${analytics.recentClaims} claims. What trends do you see and what should we expect?`;
-  
-  const response = await sendToAI(prompt);
-  hideAILoading();
-  addAIMessage("assistant", response);
-}
-
-async function askAIRecommendations() {
-  showAILoading();
-  const analytics = getAnalyticsData();
-  const prompt = `Based on the data (Approval rate: ${analytics.approvalRate}%, Unclaimed items: ${analytics.unclaimedItems}, Pending claims: ${analytics.pendingClaims}), provide 3-5 specific actionable recommendations to improve the lost and found system efficiency.`;
-  
-  const response = await sendToAI(prompt);
-  hideAILoading();
-  addAIMessage("assistant", response);
-}
-
-// AI Settings functions
-function toggleAISettings() {
-  const panel = document.getElementById("aiSettingsPanel");
-  if (panel) {
-    panel.style.display = panel.style.display === "none" ? "block" : "none";
-    if (panel.style.display === "block") {
-      document.getElementById("aiSettingsStatus").textContent = "No browser key required. Gemini is configured on the server.";
-      document.getElementById("aiSettingsStatus").style.color = "#666";
+  try {
+    const text = await sendToAI(userMsg, systemInstruction);
+    if (String(text).startsWith("Sorry, I couldn't")) {
+      body.innerHTML = `<div class="admin-ai-insights-error">${escapeHtml(text)}</div>`;
+    } else {
+      _adminAiInsightsCacheHtml = `<div class="admin-ai-insights-prose">${formatAIResponseForChat(text)}</div>`;
+      _adminAiInsightsCacheKey = key;
+      _adminAiInsightsCacheAt = Date.now();
+      body.innerHTML = _adminAiInsightsCacheHtml;
     }
+  } catch (e) {
+    body.innerHTML = `<div class="admin-ai-insights-error">${escapeHtml(String(e?.message || e))}</div>`;
+  } finally {
+    _adminAiInsightsInFlight = false;
   }
 }
 
-function saveAISettings() {
-  const statusDiv = document.getElementById("aiSettingsStatus");
-
-  statusDiv.textContent = "No browser key needed. AI uses secure server-side Gemini configuration.";
-  statusDiv.style.color = "#28a745";
-  
-  // Hide panel after 2 seconds
-  setTimeout(() => {
-    const panel = document.getElementById("aiSettingsPanel") || document.getElementById("aiChatSettings");
-    if (panel) panel.style.display = "none";
-  }, 2000);
-}
-
-// Toggle AI Chat panel
-function toggleAIChat() {
-  const panel = document.getElementById("aiAssistantPanel");
-  const bubbles = document.querySelectorAll(".toggle-bubble");
-  
-  if (panel) {
-    const isHidden = panel.style.display === "none";
-    panel.style.display = isHidden ? "block" : "none";
-    
-    // Animate bubbles
-    bubbles.forEach((bubble, index) => {
-      setTimeout(() => {
-        if (isHidden) {
-          bubble.classList.add("active");
-        } else {
-          bubble.classList.remove("active");
-        }
-      }, index * 100);
-    });
-    
-    // Also hide settings panel when collapsing
-    if (!isHidden) {
-      const settingsPanel = document.getElementById("aiSettingsPanel");
-      if (settingsPanel) settingsPanel.style.display = "none";
-    }
-  }
-}
-
-// Handle Enter key in AI chat input
 document.addEventListener("DOMContentLoaded", () => {
-  const aiInput = document.getElementById("aiChatInputPopup");
-  if (aiInput) {
-    aiInput.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") {
-        sendAIChatMessagePopup();
-      }
-    });
-  }
   document.addEventListener("click", (e) => {
     const panel = document.getElementById("studentNotifPanel");
     const wrap = document.querySelector(".student-notif-wrap");
@@ -4337,120 +4289,3 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!wrap.contains(e.target)) panel.style.display = "none";
   });
 });
-
-// ===================== AI POPUP FUNCTIONS =====================
-function openAIChatPopup() {
-  openModal("aiChatModal");
-  // Hide welcome message if there are messages
-  const messagesContainer = document.getElementById("aiChatMessagesPopup");
-  const welcome = document.querySelector(".ai-welcome-popup");
-  if (messagesContainer && messagesContainer.children.length > 0 && welcome) {
-    welcome.style.display = "none";
-  }
-}
-
-function toggleAISettingsPopup() {
-  const settings = document.getElementById("aiChatSettings");
-  if (settings) {
-    settings.style.display = settings.style.display === "none" ? "block" : "none";
-    if (settings.style.display === "block") {
-      document.getElementById("aiSettingsStatus").textContent = "Gemini is configured on the server. Run the app with the Node server to enable AI.";
-      document.getElementById("aiSettingsStatus").style.color = "#666";
-    }
-  }
-}
-
-function addAIMessagePopup(role, content) {
-  const container = document.getElementById("aiChatMessagesPopup");
-  const welcome = document.querySelector(".ai-welcome-popup");
-  if (welcome) welcome.style.display = "none";
-  
-  const msgDiv = document.createElement("div");
-  msgDiv.className = `ai-message-popup ${role}`;
-  msgDiv.innerHTML = role === "assistant" ? formatAIResponseForChat(content) : escapeHtml(content);
-  container.appendChild(msgDiv);
-  
-  const body = document.getElementById("aiChatBody");
-  body.scrollTop = body.scrollHeight;
-}
-
-function showAILoadingPopup() {
-  const container = document.getElementById("aiChatMessagesPopup");
-  const loadingDiv = document.createElement("div");
-  loadingDiv.className = "ai-message-popup assistant";
-  loadingDiv.id = "aiLoadingPopup";
-  loadingDiv.innerHTML = '<div class="ai-loading"><span class="ai-dot-loader" aria-label="AI is thinking"><span>.</span><span>.</span><span>.</span></span></div>';
-  container.appendChild(loadingDiv);
-  
-  const body = document.getElementById("aiChatBody");
-  body.scrollTop = body.scrollHeight;
-}
-
-function hideAILoadingPopup() {
-  const loading = document.getElementById("aiLoadingPopup");
-  if (loading) loading.remove();
-}
-
-async function sendAIChatMessagePopup() {
-  const input = document.getElementById("aiChatInputPopup");
-  const message = input.value.trim();
-  if (!message) return;
-  
-  addAIMessagePopup("user", message);
-  input.value = "";
-  showAILoadingPopup();
-  
-  const response = await sendToAI(message);
-  hideAILoadingPopup();
-  addAIMessagePopup("assistant", response);
-}
-
-// Override ask functions to use popup
-const originalAskAIApprovalRate = askAIApprovalRate;
-askAIApprovalRate = async function() {
-  const analytics = getAnalyticsData();
-  const message = `What's the current approval rate? ${analytics.approvedClaims} out of ${analytics.totalClaims} claims have been approved (${analytics.approvalRate}%). Is this good?`;
-  addAIMessagePopup("user", message);
-  showAILoadingPopup();
-  const response = await sendToAI(message);
-  hideAILoadingPopup();
-  addAIMessagePopup("assistant", response);
-};
-
-const originalAskAIClaimTrends = askAIClaimTrends;
-askAIClaimTrends = async function() {
-  showAILoadingPopup();
-  const analytics = getAnalyticsData();
-  const prompt = `Analyze the claim trends. Monthly data: ${JSON.stringify(analytics.monthlyTrend)}. Recent 7-day activity: ${analytics.recentClaims} claims. What trends do you see and what should we expect?`;
-  
-  const response = await sendToAI(prompt);
-  hideAILoadingPopup();
-  addAIMessagePopup("assistant", response);
-};
-
-const originalAskAIRecommendations = askAIRecommendations;
-askAIRecommendations = async function() {
-  showAILoadingPopup();
-  const analytics = getAnalyticsData();
-  const prompt = `Based on the data (Approval rate: ${analytics.approvalRate}%, Unclaimed items: ${analytics.unclaimedItems}, Pending claims: ${analytics.pendingClaims}), provide 3-5 specific actionable recommendations to improve the lost and found system efficiency.`;
-  
-  const response = await sendToAI(prompt);
-  hideAILoadingPopup();
-  addAIMessagePopup("assistant", response);
-};
-
-const originalGenerateAIAnalyticsSummary = generateAIAnalyticsSummary;
-generateAIAnalyticsSummary = async function() {
-  showAILoadingPopup();
-  const prompt = `Generate a comprehensive analytics summary with key insights and recommendations for improvement. Include:
-1. Overall performance overview
-2. Key trends and patterns
-3. Areas of concern
-4. Actionable recommendations`;
-  
-  const response = await sendToAI(prompt);
-  hideAILoadingPopup();
-  addAIMessagePopup("assistant", response);
-};
-
-
