@@ -3206,9 +3206,100 @@ function renderNotificationsList() {
   savePersisted();
 }
 
+function getAdminOperationalSuggestions() {
+  const a = getAnalyticsData();
+  const tips = [];
+  const pf = a.pendingFoundSubmissions ?? 0;
+  const lrPR = a.lostPendingReview ?? 0;
+  const lrPV = a.lostPendingValidation ?? 0;
+  const lrCl = a.lostInClaiming ?? 0;
+
+  if (a.pendingClaims > 0) {
+    tips.push({
+      level: a.pendingClaims >= 8 ? "warn" : "info",
+      text: `Claims: ${a.pendingClaims} still in "Pending Review" — use Manage Claims and address oldest submissions first.`
+    });
+  }
+  if (pf > 0) {
+    tips.push({
+      level: "warn",
+      text: `Found reports: ${pf} student submission(s) need approve/reject under Manage Reports.`
+    });
+  }
+  if (lrPR > 0) {
+    tips.push({
+      level: "warn",
+      text: `Lost reports: ${lrPR} await your approval before they are visible to students.`
+    });
+  }
+  if (lrPV > 0) {
+    tips.push({
+      level: "info",
+      text: `${lrPV} lost report(s) are pending student validation — nudges may unblock the queue.`
+    });
+  }
+  if (lrCl > 0) {
+    tips.push({
+      level: "info",
+      text: `${lrCl} lost report(s) are in "Claiming" — finish handoffs under Lost Recoveries when appropriate.`
+    });
+  }
+
+  const unc = a.unclaimedItems;
+  if (unc >= 20) {
+    tips.push({
+      level: "warn",
+      text: `${unc} catalog items are unclaimed — improve photos, titles, and pickup notes so matches are easier.`
+    });
+  } else if (unc >= 8) {
+    tips.push({
+      level: "info",
+      text: `${unc} unclaimed items — remind departments to browse Found Items weekly.`
+    });
+  }
+
+  if (Number(a.rejectionRate) > 40 && a.totalClaims >= 4) {
+    tips.push({
+      level: "info",
+      text: `Rejection rate is ${a.rejectionRate}% — if many rejections cite weak proof, tighten claim instructions or examples.`
+    });
+  }
+
+  if (Number(a.approvalRate) >= 65 && a.totalClaims >= 5) {
+    tips.push({
+      level: "good",
+      text: "Claim approval rate looks healthy — keep adding clear pickup windows when you approve."
+    });
+  }
+
+  const hot = a.recentClaims + a.recentItems;
+  if (hot >= 10) {
+    tips.push({
+      level: "info",
+      text: "High 7-day activity — consider a fixed daily slot for report + claim review."
+    });
+  }
+
+  if (a.totalItems + a.totalClaims < 2) {
+    tips.push({
+      level: "info",
+      text: "Very little data yet — seed realistic items/reports so dashboards and AI summaries are meaningful."
+    });
+  }
+
+  if (!tips.length) {
+    tips.push({
+      level: "good",
+      text: "No urgent backlog flags — export CSV backups on a schedule for your records."
+    });
+  }
+  return tips.slice(0, 10);
+}
+
 function renderAdminAnalyticsPanel() {
   const wrap = document.getElementById("adminAnalyticsPanel");
   if (!wrap || !canPerform("admin.analytics.view")) return;
+  const a = getAnalyticsData();
   const resolved = itemsData.filter((x) => String(x.status) === "Claimed").length;
   const approvalRate = allClaims.length ? Math.round((allClaims.filter((x) => x.status === "Approved").length / allClaims.length) * 100) : 0;
   const byCategory = {};
@@ -3216,8 +3307,67 @@ function renderAdminAnalyticsPanel() {
     const k = String(r.category || "Others");
     byCategory[k] = (byCategory[k] || 0) + 1;
   });
-  const topCats = Object.entries(byCategory).sort((a, b) => b[1] - a[1]).slice(0, 5);
-  const a = getAnalyticsData();
+  const topCats = Object.entries(byCategory).sort((x, y) => y[1] - x[1]).slice(0, 8);
+  const locTop = getTopLocations(8);
+
+  const keyMetricsRows = [
+    ["Total items in catalog", a.totalItems],
+    ["Claimed items", a.claimedItems],
+    ["Unclaimed items", a.unclaimedItems],
+    ["Items pending claim", a.pendingItems],
+    ["Total claims (all time)", a.totalClaims],
+    ["Approved claims", a.approvedClaims],
+    ["Rejected claims", a.rejectedClaims],
+    ["Claims pending review", a.pendingClaims],
+    ["New claims (last 7 days)", a.recentClaims],
+    ["New items logged (last 7 days)", a.recentItems],
+    ["Claim approval rate", `${a.approvalRate}%`],
+    ["Claim rejection rate", `${a.rejectionRate}%`]
+  ]
+    .map(([lbl, val]) => `<tr><td>${htmlEsc(lbl)}</td><td class="admin-analytics-num">${htmlEsc(String(val))}</td></tr>`)
+    .join("");
+
+  const claimOutcomeRows = [
+    ["Approved", a.approvedClaims],
+    ["Rejected", a.rejectedClaims],
+    ["Pending review", a.pendingClaims],
+    ["All claims", a.totalClaims]
+  ]
+    .map(([lbl, val]) => `<tr><td>${htmlEsc(lbl)}</td><td class="admin-analytics-num">${htmlEsc(String(val))}</td></tr>`)
+    .join("");
+
+  const reportQueueRows = [
+    ["Found reports (awaiting admin)", a.pendingFoundSubmissions],
+    ["Lost — pending your review", a.lostPendingReview],
+    ["Lost — pending student validation", a.lostPendingValidation],
+    ["Lost — in claiming handoff", a.lostInClaiming],
+    ["All lost reports on file", lostReports.length]
+  ]
+    .map(([lbl, val]) => `<tr><td>${htmlEsc(lbl)}</td><td class="admin-analytics-num">${htmlEsc(String(val))}</td></tr>`)
+    .join("");
+
+  const catRows = topCats.length
+    ? topCats.map(([k, v]) => `<tr><td>${htmlEsc(k)}</td><td class="admin-analytics-num">${v}</td></tr>`).join("")
+    : `<tr><td colspan="2" class="admin-analytics-empty">No categories yet</td></tr>`;
+
+  const locRows = locTop.length
+    ? locTop.map(({ location, count }) => `<tr><td>${htmlEsc(location)}</td><td class="admin-analytics-num">${count}</td></tr>`).join("")
+    : `<tr><td colspan="2" class="admin-analytics-empty">No locations yet</td></tr>`;
+
+  const monthRows = a.monthlyTrend
+    .map(({ month, count }) => `<tr><td>${htmlEsc(month)}</td><td class="admin-analytics-num">${count}</td></tr>`)
+    .join("");
+
+  const suggestions = getAdminOperationalSuggestions();
+  const sugHtml = suggestions
+    .map((s) => {
+      const ic =
+        s.level === "warn" ? "exclamation-triangle-fill" : s.level === "good" ? "check-circle-fill" : "info-circle-fill";
+      const cls = s.level === "warn" ? "tip-warn" : s.level === "good" ? "tip-good" : "tip-info";
+      return `<div class="admin-tip-row ${cls}"><i class="bi bi-${ic}"></i><span>${htmlEsc(s.text)}</span></div>`;
+    })
+    .join("");
+
   const maxM = Math.max(1, ...a.monthlyTrend.map((t) => t.count));
   const trendBars = a.monthlyTrend
     .map(({ month, count }) => {
@@ -3229,6 +3379,7 @@ function renderAdminAnalyticsPanel() {
       </div>`;
     })
     .join("");
+
   wrap.innerHTML = `
     <div class="row g-2 mt-1 mb-2">
       <div class="col-6 col-md-3"><div class="stat-card"><div><div class="stat-num">${resolved}</div><div class="stat-lbl">Resolved Items</div></div></div></div>
@@ -3236,11 +3387,76 @@ function renderAdminAnalyticsPanel() {
       <div class="col-6 col-md-3"><div class="stat-card"><div><div class="stat-num">${approvalRate}%</div><div class="stat-lbl">Claim Approval Rate</div></div></div></div>
       <div class="col-6 col-md-3"><div class="stat-card"><div><div class="stat-num">${lostReports.length + pendingFoundReports.length}</div><div class="stat-lbl">Open Reports</div></div></div></div>
     </div>
-    <div style="font-size:.86rem;color:#667085;">
-      <strong>Top Categories:</strong> ${topCats.length ? topCats.map(([k, v]) => `${htmlEsc(k)} (${v})`).join(" • ") : "No data yet"}
+    <div class="modal-section mt-3"><i class="bi bi-table me-1"></i> Data tables</div>
+    <div class="row g-3 mt-1">
+      <div class="col-12 col-lg-4">
+        <div class="admin-analytics-table-caption">Overview</div>
+        <div class="table-responsive admin-analytics-table-wrap">
+          <table class="admin-table admin-analytics-table">
+            <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+            <tbody>${keyMetricsRows}</tbody>
+          </table>
+        </div>
+      </div>
+      <div class="col-12 col-lg-4">
+        <div class="admin-analytics-table-caption">Claims by outcome</div>
+        <div class="table-responsive admin-analytics-table-wrap">
+          <table class="admin-table admin-analytics-table">
+            <thead><tr><th>Status</th><th>Count</th></tr></thead>
+            <tbody>${claimOutcomeRows}</tbody>
+          </table>
+        </div>
+      </div>
+      <div class="col-12 col-lg-4">
+        <div class="admin-analytics-table-caption">Report queues</div>
+        <div class="table-responsive admin-analytics-table-wrap">
+          <table class="admin-table admin-analytics-table">
+            <thead><tr><th>Queue</th><th>Count</th></tr></thead>
+            <tbody>${reportQueueRows}</tbody>
+          </table>
+        </div>
+      </div>
     </div>
-    <div class="admin-mini-trend-wrap">
-      <div style="font-size:.82rem;font-weight:600;color:#1a2a4a;margin-bottom:8px;"><i class="bi bi-bar-chart-line me-1"></i>Claims by month (last 6)</div>
+    <div class="row g-3 mt-2">
+      <div class="col-12 col-md-6">
+        <div class="admin-analytics-table-caption">Top categories (items + pending found)</div>
+        <div class="table-responsive admin-analytics-table-wrap">
+          <table class="admin-table admin-analytics-table">
+            <thead><tr><th>Category</th><th>Count</th></tr></thead>
+            <tbody>${catRows}</tbody>
+          </table>
+        </div>
+      </div>
+      <div class="col-12 col-md-6">
+        <div class="admin-analytics-table-caption">Top locations (found items)</div>
+        <div class="table-responsive admin-analytics-table-wrap">
+          <table class="admin-table admin-analytics-table">
+            <thead><tr><th>Location</th><th>Items</th></tr></thead>
+            <tbody>${locRows}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="row g-3 mt-2">
+      <div class="col-12 col-md-6">
+        <div class="admin-analytics-table-caption">Claims by month (last 6)</div>
+        <div class="table-responsive admin-analytics-table-wrap">
+          <table class="admin-table admin-analytics-table">
+            <thead><tr><th>Month</th><th>Claims filed</th></tr></thead>
+            <tbody>${monthRows}</tbody>
+          </table>
+        </div>
+      </div>
+      <div class="col-12 col-md-6">
+        <div class="admin-tips-card">
+          <div class="admin-tips-title"><i class="bi bi-lightbulb-fill me-2"></i>Admin tips &amp; suggested next steps</div>
+          <p class="admin-tips-lead">Based on current numbers (no AI call). Use with the AI summary above when available.</p>
+          ${sugHtml}
+        </div>
+      </div>
+    </div>
+    <div class="admin-mini-trend-wrap mt-3">
+      <div style="font-size:.82rem;font-weight:600;color:#1a2a4a;margin-bottom:8px;"><i class="bi bi-bar-chart-line me-1"></i>Claims trend (visual)</div>
       <div class="admin-mini-trend-bars">${trendBars}</div>
     </div>`;
 }
@@ -4083,6 +4299,20 @@ function formatAIResponseForChat(raw) {
     .join("");
 }
 
+function formatAdminAiInsightsParts(raw) {
+  const s = String(raw || "").trim();
+  const sep = /\r?\n---\r?\n/;
+  if (!sep.test(s)) {
+    return `<div class="admin-ai-insight-section"><div class="admin-ai-section-h"><i class="bi bi-stars me-1"></i> Summary</div>${formatAIResponseForChat(s)}</div>`;
+  }
+  const parts = s.split(sep);
+  const head = parts[0].trim();
+  const tail = parts.slice(1).join("\n---\n").trim();
+  return `
+    <div class="admin-ai-insight-section"><div class="admin-ai-section-h"><i class="bi bi-speedometer2 me-1"></i> Snapshot</div>${formatAIResponseForChat(head)}</div>
+    <div class="admin-ai-insight-section"><div class="admin-ai-section-h"><i class="bi bi-lightbulb me-1"></i> Suggested improvements</div>${formatAIResponseForChat(tail)}</div>`;
+}
+
 // Calculate analytics data for AI
 function getAnalyticsData() {
   const totalItems = itemsData.length;
@@ -4118,6 +4348,10 @@ function getAnalyticsData() {
     totalClaims, approvedClaims, rejectedClaims, pendingClaims,
     approvalRate, rejectionRate,
     totalReports, pendingReports,
+    pendingFoundSubmissions: pendingFoundReports.length,
+    lostPendingReview: lostReports.filter((r) => r.status === "Pending Review").length,
+    lostPendingValidation: lostReports.filter((r) => r.status === "Pending Validation").length,
+    lostInClaiming: lostReports.filter((r) => r.status === "Claiming").length,
     categoryCounts,
     recentClaims, recentItems,
     topLocations: getTopLocations(),
@@ -4125,15 +4359,16 @@ function getAnalyticsData() {
   };
 }
 
-function getTopLocations() {
+function getTopLocations(max = 5) {
   const locCounts = {};
-  itemsData.forEach(item => {
-    locCounts[item.location] = (locCounts[item.location] || 0) + 1;
+  itemsData.forEach((item) => {
+    const loc = String(item.location || "Unknown");
+    locCounts[loc] = (locCounts[loc] || 0) + 1;
   });
   return Object.entries(locCounts)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([loc, count]) => ({ location: loc, count }));
+    .slice(0, max)
+    .map(([location, count]) => ({ location, count }));
 }
 
 function getMonthlyTrend() {
@@ -4248,6 +4483,10 @@ function adminAiInsightsCacheKeyFromData() {
     a.approvedClaims,
     a.rejectedClaims,
     a.pendingReports,
+    a.pendingFoundSubmissions,
+    a.lostPendingReview,
+    a.lostPendingValidation,
+    a.lostInClaiming,
     a.unclaimedItems,
     a.recentClaims,
     a.recentItems,
@@ -4289,22 +4528,24 @@ async function refreshAdminAiInsights(opts = {}) {
 
   const analytics = getAnalyticsData();
   const userMsg = `Metrics JSON (use only these facts):\n${JSON.stringify(analytics)}`;
-  const systemInstruction = `You write an automatic dashboard executive summary for GCLF (Gordon College Lost & Found) admins.
+  const systemInstruction = `You write an automatic dashboard assistant for GCLF (Gordon College Lost & Found) admins.
+
+Output exactly TWO sections separated by a single line containing only three dashes: ---
+
+Section 1 — Snapshot (4–6 bullet lines, each starts with "- "). Each line max 130 characters. Summarize inventory, claims, queues, 7-day activity, approval %, and monthly trend using ONLY the JSON numbers.
+
+Section 2 — Suggested improvements (4–6 bullet lines, each starts with "- "). Practical workflow tips for admins (priorities, review habits, communication with students, reducing backlog). Use ONLY what the data implies; do not invent school policies or deadlines.
+
 Rules:
-- Do NOT greet, chat, or ask questions. No "I'm an AI".
-- Output 5–8 lines; each line starts with "- " (markdown bullet). Each line max 130 characters.
-- Use only numbers from the JSON; do not invent campus policies or data.
-- Mention backlog if pending claims or pending reports are notable.
-- Mention approval % and recent 7-day activity vs monthly trend when useful.
-- End with one clear operational next step (still as a bullet).
-- If everything is zeros or near-empty, say the dataset is still light and suggest populating test data.`;
+- Do NOT greet or chat. No "I'm an AI".
+- If data is almost empty, say so and suggest adding realistic test data.`;
 
   try {
     const text = await sendToAI(userMsg, systemInstruction);
     if (String(text).startsWith("Sorry, I couldn't")) {
       body.innerHTML = `<div class="admin-ai-insights-error">${escapeHtml(text)}</div>`;
     } else {
-      _adminAiInsightsCacheHtml = `<div class="admin-ai-insights-prose">${formatAIResponseForChat(text)}</div>`;
+      _adminAiInsightsCacheHtml = `<div class="admin-ai-insights-prose">${formatAdminAiInsightsParts(text)}</div>`;
       _adminAiInsightsCacheKey = key;
       _adminAiInsightsCacheAt = Date.now();
       body.innerHTML = _adminAiInsightsCacheHtml;
