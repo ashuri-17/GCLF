@@ -29,8 +29,8 @@ If `AI_PROVIDER=openrouter`:
 ## AI (admin dashboard)
 
 - The **floating chatbot is removed**. There is no chat UI or prompts to type.
-- On **Admin → Overview**, an **AI-powered summary** card loads automatically from `/api/ai` using the same server-side keys (`GEMINI_API_KEY` or OpenRouter). Results are **cached ~8 minutes** (and when metrics unchanged) to limit API usage. Use **Refresh** on that card to force a new summary.
-- The **Reports and Analytics** panel includes **data tables** (metrics, claims, report queues, categories, locations, monthly counts), a **visual trend bar**, **rule-based admin tips** (no API cost), and optional **AI** narrative split into **Snapshot** vs **Suggested improvements** when `POST /api/ai` works.
+- On **Admin → Overview**, the **AI-powered summary** card loads automatically (cached ~8 minutes; **Refresh** forces a new run). The model returns two parts separated by a line `---`: **Snapshot** and **Suggested improvements** (if it omits `---`, you still get one combined block).
+- **Reports and Analytics** (same Overview section) includes **data tables** (metrics, claims, queues, categories, locations, months), a **trend bar**, and **rule-based admin tips** (no API). `/api/ai` uses the same server-side keys as above.
 
 General:
 - `PORT` (set automatically by Render)
