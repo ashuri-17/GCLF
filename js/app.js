@@ -3206,6 +3206,155 @@ function renderNotificationsList() {
   savePersisted();
 }
 
+/** SVG + donut visuals for admin analytics (and compact AI strip). */
+function adminInventoryConicBackground(a) {
+  const I = Math.max(1, a.totalItems);
+  const a1 = (a.claimedItems / I) * 360;
+  const a2 = a1 + (a.unclaimedItems / I) * 360;
+  return `conic-gradient(#198754 0deg ${a1}deg, #f59e0b ${a1}deg ${a2}deg, #3b82f6 ${a2}deg 360deg)`;
+}
+
+function buildClaimsStackedBarSvg(a, chartW, barY = 34, barH = 26) {
+  const h = barY + barH + 28;
+  const tc = a.totalClaims;
+  if (tc === 0) {
+    return `<svg class="admin-analytics-svg" viewBox="0 0 ${chartW} ${h}" width="${chartW}" height="${h}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Claims by outcome">
+    <text x="12" y="18" font-size="11" font-weight="600" fill="#1a2a4a">Claims (all time)</text>
+    <text x="12" y="${barY + 14}" font-size="10" fill="#889">No claims recorded yet.</text>
+    <text x="12" y="${h - 6}" font-size="9" fill="#667085">Total: 0</text>
+  </svg>`;
+  }
+  const T = tc;
+  const bw = Math.max(40, chartW - 24);
+  const ap = (a.approvedClaims / T) * bw;
+  const rp = (a.rejectedClaims / T) * bw;
+  const pp = (a.pendingClaims / T) * bw;
+  let x = 12;
+  const rects = [];
+  if (ap >= 0.5) {
+    rects.push(`<rect x="${x}" y="${barY}" width="${ap}" height="${barH}" fill="#198754" rx="3"/>`);
+    x += ap;
+  }
+  if (rp >= 0.5) {
+    rects.push(`<rect x="${x}" y="${barY}" width="${rp}" height="${barH}" fill="#dc3545" rx="3"/>`);
+    x += rp;
+  }
+  if (pp >= 0.5) {
+    rects.push(`<rect x="${x}" y="${barY}" width="${pp}" height="${barH}" fill="#f59e0b" rx="3"/>`);
+  }
+  return `<svg class="admin-analytics-svg" viewBox="0 0 ${chartW} ${h}" width="${chartW}" height="${h}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Claims by outcome">
+    <text x="12" y="18" font-size="11" font-weight="600" fill="#1a2a4a">Claims (all time)</text>
+    ${rects.join("")}
+    <text x="12" y="${h - 6}" font-size="9" fill="#667085">Total: ${a.totalClaims} • Approved ${a.approvedClaims} • Rejected ${a.rejectedClaims} • Pending ${a.pendingClaims}</text>
+  </svg>`;
+}
+
+function buildMonthlyClaimsSvg(a, chartW, chartH = 118) {
+  const padBottom = 22;
+  const padTop = 22;
+  const padLR = 10;
+  const chartHeight = chartH;
+  const maxC = Math.max(1, ...a.monthlyTrend.map((t) => t.count));
+  const n = Math.max(1, a.monthlyTrend.length);
+  const innerW = chartW - padLR * 2;
+  const barGap = 4;
+  const barW = Math.max(4, (innerW - (n - 1) * barGap) / n);
+  let rects = "";
+  let texts = "";
+  a.monthlyTrend.forEach((t, i) => {
+    const barH = Math.max(3, (t.count / maxC) * (chartHeight - padTop - padBottom));
+    const x = padLR + i * (barW + barGap);
+    const y = chartHeight - padBottom - barH;
+    rects += `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="#1a5fac" rx="2" opacity="0.9"/>`;
+    const shortM = String(t.month).slice(5);
+    texts += `<text x="${x + barW / 2}" y="${chartHeight - 6}" text-anchor="middle" font-size="9" fill="#667085">${htmlEsc(shortM)}</text>`;
+  });
+  return `<svg class="admin-analytics-svg" viewBox="0 0 ${chartW} ${chartHeight}" width="${chartW}" height="${chartHeight}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Claims per month">
+    <text x="${padLR}" y="16" font-size="11" font-weight="600" fill="#1a2a4a">Claims filed (last 6 months)</text>
+    ${rects}
+    ${texts}
+  </svg>`;
+}
+
+function buildAdminAnalyticsVisualChartsHtml(a) {
+  const cw = 300;
+  const claimsSvg = buildClaimsStackedBarSvg(a, cw);
+  const monthSvg = buildMonthlyClaimsSvg(a, cw);
+  const conic = adminInventoryConicBackground(a);
+  return `
+    <div class="modal-section mt-2"><i class="bi bi-pie-chart-fill me-1"></i> Charts &amp; visuals</div>
+    <div class="row g-3 mt-1">
+      <div class="col-12 col-md-4">
+        <div class="admin-chart-card">
+          <div class="admin-chart-title"><i class="bi bi-clipboard-data me-1"></i>Claim outcomes</div>
+          ${claimsSvg}
+          <div class="admin-chart-legend">
+            <span><i class="legend-ap"></i>Approved</span>
+            <span><i class="legend-rj"></i>Rejected</span>
+            <span><i class="legend-pd"></i>Pending</span>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <div class="admin-chart-card">
+          <div class="admin-chart-title"><i class="bi bi-pie-chart me-1"></i>Catalog mix</div>
+          <div class="admin-inventory-donut" style="background:${conic}">
+            <div class="admin-inventory-donut-inner">
+              <strong>${a.totalItems}</strong>
+              <span>items</span>
+            </div>
+          </div>
+          <div class="admin-chart-legend">
+            <span><i class="legend-cl"></i>Claimed ${a.claimedItems}</span>
+            <span><i class="legend-uc"></i>Unclaimed ${a.unclaimedItems}</span>
+            <span><i class="legend-ip"></i>Pending ${a.pendingItems}</span>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <div class="admin-chart-card">
+          <div class="admin-chart-title"><i class="bi bi-graph-up-arrow me-1"></i>Monthly volume</div>
+          ${monthSvg}
+        </div>
+      </div>
+    </div>`;
+}
+
+function buildAdminAiInsightsVisualStripHtml(a) {
+  const cw = 200;
+  const claimsSvg = buildClaimsStackedBarSvg(a, cw, 28, 18);
+  const monthSvg = buildMonthlyClaimsSvg(a, 200, 96);
+  const conic = adminInventoryConicBackground(a);
+  return `
+    <div class="admin-ai-visual-strip">
+      <div class="row g-2 align-items-start">
+        <div class="col-4">
+          <div class="admin-chart-title">Claims</div>
+          ${claimsSvg}
+        </div>
+        <div class="col-4 text-center">
+          <div class="admin-chart-title">Inventory</div>
+          <div class="admin-inventory-donut" style="background:${conic}">
+            <div class="admin-inventory-donut-inner"><strong>${a.totalItems}</strong><span>items</span></div>
+          </div>
+        </div>
+        <div class="col-4">
+          <div class="admin-chart-title">6-mo trend</div>
+          ${monthSvg}
+        </div>
+      </div>
+    </div>`;
+}
+
+function composeAdminAiInsightsBody(aiText) {
+  const a = getAnalyticsData();
+  const strip = buildAdminAiInsightsVisualStripHtml(a);
+  if (String(aiText || "").startsWith("Sorry, I couldn't")) {
+    return `${strip}<div class="admin-ai-insights-error">${escapeHtml(aiText)}</div>`;
+  }
+  return `${strip}<div class="admin-ai-insights-prose">${formatAdminAiInsightsParts(aiText)}</div>`;
+}
+
 function getAdminOperationalSuggestions() {
   const a = getAnalyticsData();
   const tips = [];
@@ -3217,31 +3366,36 @@ function getAdminOperationalSuggestions() {
   if (a.pendingClaims > 0) {
     tips.push({
       level: a.pendingClaims >= 8 ? "warn" : "info",
-      text: `Claims: ${a.pendingClaims} still in "Pending Review" — use Manage Claims and address oldest submissions first.`
+      area: "Claims queue",
+      action: `${a.pendingClaims} request(s) in "Pending Review" — open Manage Claims and clear oldest first.`
     });
   }
   if (pf > 0) {
     tips.push({
       level: "warn",
-      text: `Found reports: ${pf} student submission(s) need approve/reject under Manage Reports.`
+      area: "Found reports",
+      action: `${pf} student submission(s) need approve/reject under Manage Reports.`
     });
   }
   if (lrPR > 0) {
     tips.push({
       level: "warn",
-      text: `Lost reports: ${lrPR} await your approval before they are visible to students.`
+      area: "Lost reports",
+      action: `${lrPR} report(s) await your approval before they are visible to students.`
     });
   }
   if (lrPV > 0) {
     tips.push({
       level: "info",
-      text: `${lrPV} lost report(s) are pending student validation — nudges may unblock the queue.`
+      area: "Lost validation",
+      action: `${lrPV} report(s) await student validation — gentle reminders may unblock the queue.`
     });
   }
   if (lrCl > 0) {
     tips.push({
       level: "info",
-      text: `${lrCl} lost report(s) are in "Claiming" — finish handoffs under Lost Recoveries when appropriate.`
+      area: "Lost recoveries",
+      action: `${lrCl} report(s) in "Claiming" — confirm handoffs under Lost Recoveries when done.`
     });
   }
 
@@ -3249,26 +3403,30 @@ function getAdminOperationalSuggestions() {
   if (unc >= 20) {
     tips.push({
       level: "warn",
-      text: `${unc} catalog items are unclaimed — improve photos, titles, and pickup notes so matches are easier.`
+      area: "Inventory",
+      action: `${unc} unclaimed items — improve photos, titles, and pickup notes so matches are easier.`
     });
   } else if (unc >= 8) {
     tips.push({
       level: "info",
-      text: `${unc} unclaimed items — remind departments to browse Found Items weekly.`
+      area: "Inventory",
+      action: `${unc} unclaimed items — remind departments to browse Found Items weekly.`
     });
   }
 
   if (Number(a.rejectionRate) > 40 && a.totalClaims >= 4) {
     tips.push({
       level: "info",
-      text: `Rejection rate is ${a.rejectionRate}% — if many rejections cite weak proof, tighten claim instructions or examples.`
+      area: "Claim quality",
+      action: `Rejection rate is ${a.rejectionRate}% — if proof is often weak, add clearer examples on the claim form.`
     });
   }
 
   if (Number(a.approvalRate) >= 65 && a.totalClaims >= 5) {
     tips.push({
       level: "good",
-      text: "Claim approval rate looks healthy — keep adding clear pickup windows when you approve."
+      area: "Throughput",
+      action: "Approval rate looks healthy — keep using clear pickup windows when you approve."
     });
   }
 
@@ -3276,21 +3434,24 @@ function getAdminOperationalSuggestions() {
   if (hot >= 10) {
     tips.push({
       level: "info",
-      text: "High 7-day activity — consider a fixed daily slot for report + claim review."
+      area: "Workload",
+      action: "High 7-day activity — consider a fixed daily slot for report + claim review."
     });
   }
 
   if (a.totalItems + a.totalClaims < 2) {
     tips.push({
       level: "info",
-      text: "Very little data yet — seed realistic items/reports so dashboards and AI summaries are meaningful."
+      area: "Data depth",
+      action: "Very little data yet — seed realistic items/reports so charts and AI summaries are meaningful."
     });
   }
 
   if (!tips.length) {
     tips.push({
       level: "good",
-      text: "No urgent backlog flags — export CSV backups on a schedule for your records."
+      area: "Housekeeping",
+      action: "No urgent backlog flags — export CSV backups on a schedule for your records."
     });
   }
   return tips.slice(0, 10);
@@ -3359,26 +3520,16 @@ function renderAdminAnalyticsPanel() {
     .join("");
 
   const suggestions = getAdminOperationalSuggestions();
-  const sugHtml = suggestions
+  const sugRows = suggestions
     .map((s) => {
-      const ic =
-        s.level === "warn" ? "exclamation-triangle-fill" : s.level === "good" ? "check-circle-fill" : "info-circle-fill";
-      const cls = s.level === "warn" ? "tip-warn" : s.level === "good" ? "tip-good" : "tip-info";
-      return `<div class="admin-tip-row ${cls}"><i class="bi bi-${ic}"></i><span>${htmlEsc(s.text)}</span></div>`;
+      const pri = s.level === "warn" ? "Attention" : s.level === "good" ? "OK" : "Info";
+      const trCls = s.level === "warn" ? "admin-tips-tr-warn" : s.level === "good" ? "admin-tips-tr-good" : "admin-tips-tr-info";
+      return `<tr class="${trCls}"><td class="admin-tips-pri">${htmlEsc(pri)}</td><td class="admin-tips-area">${htmlEsc(s.area)}</td><td class="admin-tips-action">${htmlEsc(s.action)}</td></tr>`;
     })
     .join("");
+  const sugTable = `<div class="table-responsive admin-tips-table-wrap"><table class="admin-table admin-analytics-table admin-tips-table"><thead><tr><th>Priority</th><th>Area</th><th>Suggested next step</th></tr></thead><tbody>${sugRows}</tbody></table></div>`;
 
-  const maxM = Math.max(1, ...a.monthlyTrend.map((t) => t.count));
-  const trendBars = a.monthlyTrend
-    .map(({ month, count }) => {
-      const hPx = Math.max(6, Math.round((count / maxM) * 88));
-      const label = String(month).replace(/^\d{4}-/, "");
-      return `<div class="ai-mini-bar-wrap" title="${htmlEsc(month)}: ${count} claims">
-        <div class="ai-mini-bar-track"><div class="ai-mini-bar" style="height:${hPx}px;"></div></div>
-        <span class="ai-mini-bar-lbl">${htmlEsc(label)}</span>
-      </div>`;
-    })
-    .join("");
+  const visualCharts = buildAdminAnalyticsVisualChartsHtml(a);
 
   wrap.innerHTML = `
     <div class="row g-2 mt-1 mb-2">
@@ -3387,6 +3538,7 @@ function renderAdminAnalyticsPanel() {
       <div class="col-6 col-md-3"><div class="stat-card"><div><div class="stat-num">${approvalRate}%</div><div class="stat-lbl">Claim Approval Rate</div></div></div></div>
       <div class="col-6 col-md-3"><div class="stat-card"><div><div class="stat-num">${lostReports.length + pendingFoundReports.length}</div><div class="stat-lbl">Open Reports</div></div></div></div>
     </div>
+    ${visualCharts}
     <div class="modal-section mt-3"><i class="bi bi-table me-1"></i> Data tables</div>
     <div class="row g-3 mt-1">
       <div class="col-12 col-lg-4">
@@ -3451,13 +3603,9 @@ function renderAdminAnalyticsPanel() {
         <div class="admin-tips-card">
           <div class="admin-tips-title"><i class="bi bi-lightbulb-fill me-2"></i>Admin tips &amp; suggested next steps</div>
           <p class="admin-tips-lead">Based on current numbers (no AI call). Use with the AI summary above when available.</p>
-          ${sugHtml}
+          ${sugTable}
         </div>
       </div>
-    </div>
-    <div class="admin-mini-trend-wrap mt-3">
-      <div style="font-size:.82rem;font-weight:600;color:#1a2a4a;margin-bottom:8px;"><i class="bi bi-bar-chart-line me-1"></i>Claims trend (visual)</div>
-      <div class="admin-mini-trend-bars">${trendBars}</div>
     </div>`;
 }
 
@@ -4299,18 +4447,43 @@ function formatAIResponseForChat(raw) {
     .join("");
 }
 
-function formatAdminAiInsightsParts(raw) {
-  const s = String(raw || "").trim();
-  const sep = /\r?\n---\r?\n/;
-  if (!sep.test(s)) {
-    return `<div class="admin-ai-insight-section"><div class="admin-ai-section-h"><i class="bi bi-stars me-1"></i> Summary</div>${formatAIResponseForChat(s)}</div>`;
+/** Line looks like --- / *** / ___ with optional spaces (ASCII or common Unicode dashes). */
+function isModelHorizontalRuleLine(line) {
+  const t = String(line || "").trim();
+  if (t.length < 3 || t.length > 80) return false;
+  if (/[a-z0-9]/i.test(t)) return false;
+  return /^[\s\-–—―−‐*\._=#]+$/u.test(t);
+}
+
+/** Drop HR dividers and everything after; strip a lone "Summary" heading line. */
+function stripAdminInsightModelOutput(raw) {
+  const lines = String(raw || "").split(/\r?\n/);
+  const kept = [];
+  for (const line of lines) {
+    if (isModelHorizontalRuleLine(line)) break;
+    kept.push(line);
   }
-  const parts = s.split(sep);
-  const head = parts[0].trim();
-  const tail = parts.slice(1).join("\n---\n").trim();
-  return `
-    <div class="admin-ai-insight-section"><div class="admin-ai-section-h"><i class="bi bi-speedometer2 me-1"></i> Snapshot</div>${formatAIResponseForChat(head)}</div>
-    <div class="admin-ai-insight-section"><div class="admin-ai-section-h"><i class="bi bi-lightbulb me-1"></i> Suggested improvements</div>${formatAIResponseForChat(tail)}</div>`;
+  let s = kept.join("\n").trim();
+  const head = s.split(/\r?\n/);
+  if (head.length && /^#*\s*Summary\s*:?\s*$/i.test(head[0].trim())) {
+    s = head.slice(1).join("\n").trim();
+  }
+  const adviceLead =
+    /^[-*•\d.\s]*(keep|verify|encourage|maintain|consider|periodically|prioritize)\b/i;
+  s = s
+    .split(/\r?\n/)
+    .filter((line) => {
+      const t = line.trim();
+      if (!t) return false;
+      return !adviceLead.test(t);
+    })
+    .join("\n")
+    .trim();
+  return s;
+}
+
+function formatAdminAiInsightsParts(raw) {
+  return formatAIResponseForChat(stripAdminInsightModelOutput(raw));
 }
 
 // Calculate analytics data for AI
@@ -4460,11 +4633,20 @@ Be professional but friendly.`;
 }
 
 const ADMIN_AI_INSIGHTS_CACHE_MS = 8 * 60 * 1000;
+const ADMIN_AI_INSIGHTS_PROMPT_V = 4;
+/** Shown under the card title; set from JS so an old cached HTML file cannot leave stale copy. */
+const ADMIN_AI_INSIGHTS_CARD_SUB =
+  "Short read of the same numbers as the tables and charts. Cached a few minutes; use Refresh to run again.";
 let _adminAiInsightsInFlight = false;
 let _adminAiInsightsCacheAt = 0;
 let _adminAiInsightsCacheKey = "";
-let _adminAiInsightsCacheHtml = "";
+let _adminAiInsightsCacheAiText = "";
 let _adminAiInsightsDebounceT = null;
+
+function syncAdminAiInsightsSubtext() {
+  const el = document.getElementById("adminAiInsightsSub");
+  if (el) el.textContent = ADMIN_AI_INSIGHTS_CARD_SUB;
+}
 
 function scheduleAdminAiInsightsRefresh() {
   if (_adminAiInsightsDebounceT) clearTimeout(_adminAiInsightsDebounceT);
@@ -4477,6 +4659,7 @@ function scheduleAdminAiInsightsRefresh() {
 function adminAiInsightsCacheKeyFromData() {
   const a = getAnalyticsData();
   return [
+    ADMIN_AI_INSIGHTS_PROMPT_V,
     a.totalItems,
     a.totalClaims,
     a.pendingClaims,
@@ -4511,53 +4694,57 @@ async function refreshAdminAiInsights(opts = {}) {
   }
   if (row) row.style.display = "";
 
+  syncAdminAiInsightsSubtext();
+
   const key = adminAiInsightsCacheKeyFromData();
   if (
     !force &&
-    _adminAiInsightsCacheHtml &&
+    _adminAiInsightsCacheAiText &&
     key === _adminAiInsightsCacheKey &&
     Date.now() - _adminAiInsightsCacheAt < ADMIN_AI_INSIGHTS_CACHE_MS
   ) {
-    body.innerHTML = _adminAiInsightsCacheHtml;
+    body.innerHTML = composeAdminAiInsightsBody(_adminAiInsightsCacheAiText);
     return;
   }
   if (_adminAiInsightsInFlight) return;
   _adminAiInsightsInFlight = true;
 
-  body.innerHTML = `<div class="admin-ai-insights-loading"><span class="ai-dot-loader" aria-label="Generating"><span>.</span><span>.</span><span>.</span></span><span> Generating summary…</span></div>`;
+  body.innerHTML = `${buildAdminAiInsightsVisualStripHtml(getAnalyticsData())}<div class="admin-ai-insights-loading"><span class="ai-dot-loader" aria-label="Generating"><span>.</span><span>.</span><span>.</span></span><span> Generating summary…</span></div>`;
 
   const analytics = getAnalyticsData();
   const userMsg = `Metrics JSON (use only these facts):\n${JSON.stringify(analytics)}`;
-  const systemInstruction = `You write an automatic dashboard assistant for GCLF (Gordon College Lost & Found) admins.
+  const systemInstruction = `You write a tiny metrics blurb for GCLF (Gordon College Lost & Found) admins.
 
-Output exactly TWO sections separated by a single line containing only three dashes: ---
+Return ONLY a single block of 2–4 bullet lines, each starting with "- ". Max 4 bullets. No title line, no word "Summary", no horizontal rules, no second block.
 
-Section 1 — Snapshot (4–6 bullet lines, each starts with "- "). Each line max 130 characters. Summarize inventory, claims, queues, 7-day activity, approval %, and monthly trend using ONLY the JSON numbers.
+Content: compress the JSON — inventory (claimed/unclaimed/pending counts), claims (totals, approved/rejected/pending, approval %), report queues if non-zero, optional top categories, 7-day new items/claims, one short phrase on monthly claim counts. Use ONLY values and labels from the JSON.
 
-Section 2 — Suggested improvements (4–6 bullet lines, each starts with "- "). Practical workflow tips for admins (priorities, review habits, communication with students, reducing backlog). Use ONLY what the data implies; do not invent school policies or deadlines.
+Forbidden: how-to tips, "keep/verify/encourage/maintain/consider", workflows, communication advice, quality reminders, invented examples (e.g. fake typos or room names), or anything the dashboard tips table would say.
 
-Rules:
-- Do NOT greet or chat. No "I'm an AI".
-- If data is almost empty, say so and suggest adding realistic test data.`;
+If data is sparse, fewer bullets are fine. Do not greet.`;
 
   try {
     const text = await sendToAI(userMsg, systemInstruction);
     if (String(text).startsWith("Sorry, I couldn't")) {
-      body.innerHTML = `<div class="admin-ai-insights-error">${escapeHtml(text)}</div>`;
+      body.innerHTML = composeAdminAiInsightsBody(text);
     } else {
-      _adminAiInsightsCacheHtml = `<div class="admin-ai-insights-prose">${formatAdminAiInsightsParts(text)}</div>`;
+      const cleaned = stripAdminInsightModelOutput(text);
+      _adminAiInsightsCacheAiText = cleaned;
       _adminAiInsightsCacheKey = key;
       _adminAiInsightsCacheAt = Date.now();
-      body.innerHTML = _adminAiInsightsCacheHtml;
+      body.innerHTML = composeAdminAiInsightsBody(cleaned);
     }
   } catch (e) {
-    body.innerHTML = `<div class="admin-ai-insights-error">${escapeHtml(String(e?.message || e))}</div>`;
+    body.innerHTML = composeAdminAiInsightsBody(
+      "Sorry, I couldn't process your request. " + String(e?.message || e)
+    );
   } finally {
     _adminAiInsightsInFlight = false;
   }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  syncAdminAiInsightsSubtext();
   document.addEventListener("click", (e) => {
     const panel = document.getElementById("studentNotifPanel");
     const wrap = document.querySelector(".student-notif-wrap");

@@ -29,7 +29,7 @@ If `AI_PROVIDER=openrouter`:
 ## AI (admin dashboard)
 
 - The **floating chatbot is removed**. There is no chat UI or prompts to type.
-- On **Admin → Overview**, the **AI-powered summary** card loads automatically (cached ~8 minutes; **Refresh** forces a new run). The model returns two parts separated by a line `---`: **Snapshot** and **Suggested improvements** (if it omits `---`, you still get one combined block).
+- On **Admin → Overview**, the **AI-powered summary** card loads automatically (cached ~8 minutes; **Refresh** forces a new run). The model returns a short factual bullet summary of the same JSON metrics shown in the charts and tables (no separate “advice” block; operational tips stay in the tips table below).
 - **Reports and Analytics** (same Overview section) includes **data tables** (metrics, claims, queues, categories, locations, months), a **trend bar**, and **rule-based admin tips** (no API). `/api/ai` uses the same server-side keys as above.
 
 General:
