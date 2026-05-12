@@ -1109,6 +1109,7 @@ async function launchStudentApp() {
   renderMyFoundReportsList();
   runClaimScheduleReminderSweep();
   renderStudentNotificationBell();
+  if (typeof renderNotificationsList === "function") renderNotificationsList();
   if (claimReminderTimer) clearInterval(claimReminderTimer);
   claimReminderTimer = setInterval(() => {
     runClaimScheduleReminderSweep();
@@ -1247,6 +1248,7 @@ function studentNav(page, el) {
   if (page === "dashboard") {
     updateStudentStats();
     renderDashboardMixed();
+    if (typeof renderNotificationsList === "function") renderNotificationsList();
   }
   if (page === "profile") buildStudentProfileForm();
   if (page === "foundItems") renderItems();
@@ -3021,6 +3023,35 @@ function markSyntheticNotificationRead(id) {
   }
 }
 
+/** Ids the current user removed from their feed (synthetic pickup reminders, broadcast rows, etc.). */
+function userDismissedNotificationKey() {
+  return `gclf_notif_dismissed:${String(currentUser?.email || "").toLowerCase()}`;
+}
+
+function getUserDismissedNotificationIdsSet() {
+  try {
+    const raw = localStorage.getItem(userDismissedNotificationKey());
+    const arr = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(arr) ? arr.map(String) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function isUserDismissedNotification(id) {
+  return getUserDismissedNotificationIdsSet().has(String(id));
+}
+
+function dismissNotificationForCurrentUser(id) {
+  const set = getUserDismissedNotificationIdsSet();
+  set.add(String(id));
+  try {
+    localStorage.setItem(userDismissedNotificationKey(), JSON.stringify([...set]));
+  } catch (e) {
+    console.warn("Dismissed notif persist failed:", e);
+  }
+}
+
 function buildSyntheticClaimScheduleNotifications() {
   if (!currentUser?.email) return [];
   const emailNorm = currentUser.email.toLowerCase();
@@ -3069,7 +3100,7 @@ function getStudentNotifications() {
   });
   const merged = [...real, ...synthetic];
   merged.sort((a, b) => notificationSortTime(b) - notificationSortTime(a));
-  return merged;
+  return merged.filter((n) => !isUserDismissedNotification(n.id));
 }
 
 function getUnreadNotificationCount() {
@@ -3090,7 +3121,7 @@ function renderStudentNotificationBell() {
   countEl.style.display = unread > 0 ? "flex" : "none";
 
   if (!mine.length) {
-    listEl.innerHTML = `<div class="student-notif-item">No notifications yet.</div>`;
+    listEl.innerHTML = `<div class="student-notif-item student-notif-item-empty">No notifications yet.</div>`;
     return;
   }
   listEl.innerHTML = mine
@@ -3098,13 +3129,96 @@ function renderStudentNotificationBell() {
       const isRead = n._synthetic
         ? isSyntheticNotificationRead(n.id)
         : Array.isArray(n.readBy) && n.readBy.includes(currentUser.email);
-      const safeId = String(n.id).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-      return `<div class="student-notif-item ${isRead ? "" : "unread"}" onclick="markStudentNotificationRead('${safeId}')">
-        <div>${htmlEsc(n.message)}</div>
-        <div class="student-notif-item-time">${htmlEsc(n.createdAt || "—")}</div>
+      const nid = attrEsc(String(n.id));
+      return `<div class="student-notif-item ${isRead ? "" : "unread"}" data-notif-id="${nid}">
+        <div class="student-notif-item-main">
+          <div>${htmlEsc(n.message)}</div>
+          <div class="student-notif-item-time">${htmlEsc(n.createdAt || "—")}</div>
+        </div>
+        <div class="student-notif-item-actions">
+          <button type="button" class="student-notif-act" title="Mark as read" aria-label="Mark as read" data-notif-id="${nid}" onclick="notificationMarkReadClick(event)"><i class="bi bi-check2"></i></button>
+          <button type="button" class="student-notif-act student-notif-act-danger" title="Remove" aria-label="Remove" data-notif-id="${nid}" onclick="notificationDeleteClick(event)"><i class="bi bi-trash3"></i></button>
+        </div>
       </div>`;
     })
     .join("");
+}
+
+function notificationMarkReadClick(ev) {
+  ev.preventDefault();
+  ev.stopPropagation();
+  const id = ev.currentTarget.getAttribute("data-notif-id");
+  if (id) markStudentNotificationRead(id);
+}
+
+function notificationDeleteClick(ev) {
+  ev.preventDefault();
+  ev.stopPropagation();
+  const id = ev.currentTarget.getAttribute("data-notif-id");
+  if (id) deleteStudentNotification(id);
+}
+
+function markAllStudentNotificationsRead(ev) {
+  if (ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+  }
+  if (!currentUser?.email) return;
+  const list = getStudentNotifications().slice(0, 80);
+  let changed = false;
+  list.forEach((n) => {
+    if (n._synthetic) {
+      if (!isSyntheticNotificationRead(n.id)) {
+        markSyntheticNotificationRead(n.id);
+        changed = true;
+      }
+      return;
+    }
+    const x = notifications.find((row) => String(row.id) === String(n.id));
+    if (!x) return;
+    x.readBy = Array.isArray(x.readBy) ? x.readBy : [];
+    if (!x.readBy.includes(currentUser.email)) {
+      x.readBy.push(currentUser.email);
+      changed = true;
+      saveToSupabase("notifications", x).catch((e) => console.warn("Supabase save failed:", e));
+    }
+  });
+  if (changed) savePersisted();
+  renderStudentNotificationBell();
+  if (typeof renderNotificationsList === "function") renderNotificationsList();
+}
+
+function deleteStudentNotification(notificationId) {
+  if (!currentUser?.email) return;
+  const idStr = String(notificationId);
+  if (idStr.startsWith("syn-claim-")) {
+    dismissNotificationForCurrentUser(idStr);
+    renderStudentNotificationBell();
+    if (typeof renderNotificationsList === "function") renderNotificationsList();
+    return;
+  }
+  const idx = notifications.findIndex((x) => String(x.id) === idStr);
+  if (idx === -1) {
+    dismissNotificationForCurrentUser(idStr);
+    renderStudentNotificationBell();
+    if (typeof renderNotificationsList === "function") renderNotificationsList();
+    return;
+  }
+  const n = notifications[idx];
+  const myEmail = currentUser.email.toLowerCase();
+  const target = n.targetEmail != null && String(n.targetEmail).trim() !== "" ? String(n.targetEmail).toLowerCase() : "";
+  if (target && target !== myEmail) return;
+  if (!target) {
+    dismissNotificationForCurrentUser(idStr);
+    renderStudentNotificationBell();
+    if (typeof renderNotificationsList === "function") renderNotificationsList();
+    return;
+  }
+  notifications.splice(idx, 1);
+  savePersisted();
+  void deleteFromSupabase("notifications", idStr).catch((e) => console.warn("Supabase delete failed:", e));
+  renderStudentNotificationBell();
+  if (typeof renderNotificationsList === "function") renderNotificationsList();
 }
 
 function toggleStudentNotifications() {
@@ -3121,6 +3235,7 @@ function markStudentNotificationRead(notificationId) {
   if (idStr.startsWith("syn-claim-")) {
     markSyntheticNotificationRead(idStr);
     renderStudentNotificationBell();
+    if (typeof renderNotificationsList === "function") renderNotificationsList();
     return;
   }
   const n = notifications.find((x) => String(x.id) === String(notificationId));
@@ -3132,6 +3247,7 @@ function markStudentNotificationRead(notificationId) {
     saveToSupabase("notifications", n).catch((e) => console.warn("Supabase save failed:", e));
   }
   renderStudentNotificationBell();
+  if (typeof renderNotificationsList === "function") renderNotificationsList();
 }
 
 function runClaimScheduleReminderSweep() {
@@ -3179,31 +3295,29 @@ function runClaimScheduleReminderSweep() {
 function renderNotificationsList() {
   const wrap = document.getElementById("notificationsList");
   if (!wrap || !currentUser?.email) return;
-  const mine = notifications.filter((n) => !n.targetEmail || n.targetEmail === currentUser.email);
+  const mine = getStudentNotifications().slice(0, 80);
   if (!mine.length) {
     wrap.innerHTML = '<div class="empty-state"><i class="bi bi-bell-slash"></i><p>No notifications yet.</p></div>';
     return;
   }
-  const readSet = new Set();
   wrap.innerHTML = mine
-    .slice(0, 80)
     .map((n) => {
-      const isRead = Array.isArray(n.readBy) && n.readBy.includes(currentUser.email);
-      readSet.add(n.id);
-      return `<div class="claim-row" style="${isRead ? "opacity:.8;" : "border-left:4px solid #1a5fac;"}">
-        <div class="claim-info">
-          <div class="claim-info-name">${htmlEsc(n.message)}</div>
-          <div class="claim-info-sub">${htmlEsc(n.createdAt || "—")}</div>
+      const isRead = n._synthetic
+        ? isSyntheticNotificationRead(n.id)
+        : Array.isArray(n.readBy) && n.readBy.includes(currentUser.email);
+      const nid = attrEsc(String(n.id));
+      return `<div class="notif-feed-row ${isRead ? "" : "unread"}" data-notif-id="${nid}">
+        <div class="notif-feed-main">
+          <div class="notif-feed-msg">${htmlEsc(n.message)}</div>
+          <div class="notif-feed-time">${htmlEsc(n.createdAt || "—")}</div>
+        </div>
+        <div class="student-notif-item-actions">
+          <button type="button" class="student-notif-act" title="Mark as read" aria-label="Mark as read" data-notif-id="${nid}" onclick="notificationMarkReadClick(event)"><i class="bi bi-check2"></i></button>
+          <button type="button" class="student-notif-act student-notif-act-danger" title="Remove" aria-label="Remove" data-notif-id="${nid}" onclick="notificationDeleteClick(event)"><i class="bi bi-trash3"></i></button>
         </div>
       </div>`;
     })
     .join("");
-  notifications.forEach((n) => {
-    if (!readSet.has(n.id)) return;
-    n.readBy = Array.isArray(n.readBy) ? n.readBy : [];
-    if (!n.readBy.includes(currentUser.email)) n.readBy.push(currentUser.email);
-  });
-  savePersisted();
 }
 
 /** SVG + donut visuals for admin analytics (and compact AI strip). */
