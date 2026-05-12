@@ -409,43 +409,6 @@ img { max-width: 100%; height: auto; }
 }
 .student-notif-item.unread { border-left: 3px solid #1a5fac; background: #f8fbff; }
 .student-notif-item-time { color: #7a8799; font-size: 0.73rem; margin-top: 3px; }
-.notif-feed-card {
-  padding: 0 !important;
-  overflow: hidden;
-}
-.notif-feed-row {
-  display: flex;
-  align-items: flex-start;
-  flex-wrap: nowrap;
-  gap: 12px;
-  padding: 12px 14px;
-  border-bottom: 1px solid #e8eef4;
-  background: #fff;
-}
-.notif-feed-row .student-notif-item-actions {
-  flex-shrink: 0;
-}
-.notif-feed-row:last-child {
-  border-bottom: none;
-}
-.notif-feed-row.unread {
-  border-left: 3px solid #1a5fac;
-  background: #f8fbff;
-}
-.notif-feed-main {
-  flex: 1;
-  min-width: 0;
-}
-.notif-feed-msg {
-  font-size: 0.88rem;
-  color: #1a2a4a;
-  line-height: 1.4;
-}
-.notif-feed-time {
-  font-size: 0.78rem;
-  color: #889;
-  margin-top: 4px;
-}
 .topbar-badge {
   background: var(--gc-blue); color: #fff;
   border-radius: 20px; padding: 3px 12px;

@@ -976,7 +976,6 @@ function setupRealTimeListeners() {
   var unsub5 = listenToSupabase("notifications", function(data) {
     notifications = data;
     renderStudentNotificationBell();
-    if (typeof renderNotificationsList === "function") renderNotificationsList();
   });
   unsubscribers.push(unsub5);
 
@@ -1109,7 +1108,6 @@ async function launchStudentApp() {
   renderMyFoundReportsList();
   runClaimScheduleReminderSweep();
   renderStudentNotificationBell();
-  if (typeof renderNotificationsList === "function") renderNotificationsList();
   if (claimReminderTimer) clearInterval(claimReminderTimer);
   claimReminderTimer = setInterval(() => {
     runClaimScheduleReminderSweep();
@@ -1248,7 +1246,6 @@ function studentNav(page, el) {
   if (page === "dashboard") {
     updateStudentStats();
     renderDashboardMixed();
-    if (typeof renderNotificationsList === "function") renderNotificationsList();
   }
   if (page === "profile") buildStudentProfileForm();
   if (page === "foundItems") renderItems();
@@ -3187,7 +3184,6 @@ function markAllStudentNotificationsRead(ev) {
   });
   if (changed) savePersisted();
   renderStudentNotificationBell();
-  if (typeof renderNotificationsList === "function") renderNotificationsList();
 }
 
 function deleteStudentNotification(notificationId) {
@@ -3196,14 +3192,12 @@ function deleteStudentNotification(notificationId) {
   if (idStr.startsWith("syn-claim-")) {
     dismissNotificationForCurrentUser(idStr);
     renderStudentNotificationBell();
-    if (typeof renderNotificationsList === "function") renderNotificationsList();
     return;
   }
   const idx = notifications.findIndex((x) => String(x.id) === idStr);
   if (idx === -1) {
     dismissNotificationForCurrentUser(idStr);
     renderStudentNotificationBell();
-    if (typeof renderNotificationsList === "function") renderNotificationsList();
     return;
   }
   const n = notifications[idx];
@@ -3213,14 +3207,12 @@ function deleteStudentNotification(notificationId) {
   if (!target) {
     dismissNotificationForCurrentUser(idStr);
     renderStudentNotificationBell();
-    if (typeof renderNotificationsList === "function") renderNotificationsList();
     return;
   }
   notifications.splice(idx, 1);
   savePersisted();
   void deleteFromSupabase("notifications", idStr).catch((e) => console.warn("Supabase delete failed:", e));
   renderStudentNotificationBell();
-  if (typeof renderNotificationsList === "function") renderNotificationsList();
 }
 
 function toggleStudentNotifications() {
@@ -3237,7 +3229,6 @@ function markStudentNotificationRead(notificationId) {
   if (idStr.startsWith("syn-claim-")) {
     markSyntheticNotificationRead(idStr);
     renderStudentNotificationBell();
-    if (typeof renderNotificationsList === "function") renderNotificationsList();
     return;
   }
   const n = notifications.find((x) => String(x.id) === String(notificationId));
@@ -3249,7 +3240,6 @@ function markStudentNotificationRead(notificationId) {
     saveToSupabase("notifications", n).catch((e) => console.warn("Supabase save failed:", e));
   }
   renderStudentNotificationBell();
-  if (typeof renderNotificationsList === "function") renderNotificationsList();
 }
 
 function runClaimScheduleReminderSweep() {
@@ -3292,34 +3282,6 @@ function runClaimScheduleReminderSweep() {
       );
     }
   });
-}
-
-function renderNotificationsList() {
-  const wrap = document.getElementById("notificationsList");
-  if (!wrap || !currentUser?.email) return;
-  const mine = getStudentNotifications().slice(0, 80);
-  if (!mine.length) {
-    wrap.innerHTML = '<div class="empty-state"><i class="bi bi-bell-slash"></i><p>No notifications yet.</p></div>';
-    return;
-  }
-  wrap.innerHTML = mine
-    .map((n) => {
-      const isRead = n._synthetic
-        ? isSyntheticNotificationRead(n.id)
-        : Array.isArray(n.readBy) && n.readBy.includes(currentUser.email);
-      const nid = encodeURIComponent(String(n.id));
-      return `<div class="notif-feed-row ${isRead ? "" : "unread"}" data-notif-id="${nid}">
-        <div class="notif-feed-main">
-          <div class="notif-feed-msg">${htmlEsc(n.message)}</div>
-          <div class="notif-feed-time">${htmlEsc(n.createdAt || "—")}</div>
-        </div>
-        <div class="student-notif-item-actions">
-          <button type="button" class="student-notif-act" title="Mark as read" data-notif-id="${nid}" onclick="notificationMarkReadClick(event)"><span class="student-notif-act-label">Read</span></button>
-          <button type="button" class="student-notif-act student-notif-act-danger" title="Remove from list" data-notif-id="${nid}" onclick="notificationDeleteClick(event)"><span class="student-notif-act-label">Remove</span></button>
-        </div>
-      </div>`;
-    })
-    .join("");
 }
 
 /** SVG + donut visuals for admin analytics (and compact AI strip). */
