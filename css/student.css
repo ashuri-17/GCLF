@@ -297,118 +297,138 @@ img { max-width: 100%; height: auto; }
   position: absolute;
   top: 42px;
   right: 0;
-  width: 360px;
-  max-height: 400px;
-  background: #fff;
-  border: 1px solid #e1e8f4;
-  border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+  width: 380px;
+  max-height: 420px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.12);
   z-index: 3000;
   overflow: hidden;
 }
 .student-notif-header {
-  padding: 10px 12px;
-  background: #f5f8ff;
-  border-bottom: 1px solid #e6edf8;
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: #35517a;
+  padding: 12px 16px;
+  background: #fff;
+  border-bottom: 1px solid #e8eef4;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f2744;
+  letter-spacing: -0.02em;
 }
 .student-notif-header-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
 }
 .student-notif-header-link {
   background: none;
   border: none;
   color: #1a5fac;
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   font-weight: 600;
   text-decoration: underline;
+  text-underline-offset: 2px;
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 4px 2px;
   flex-shrink: 0;
 }
 .student-notif-header-link:hover {
   color: #0d4070;
 }
 .student-notif-list {
-  max-height: 340px;
+  max-height: 350px;
   overflow-y: auto;
-  padding: 8px;
+  padding: 10px 12px 12px;
+  background: #f8fafc;
 }
 .student-notif-item {
-  border: 1px solid #e5ebf7;
-  border-radius: 10px;
-  padding: 8px 10px;
-  margin-bottom: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 12px 12px 14px;
+  margin-bottom: 10px;
   font-size: 0.8rem;
-  color: #30445f;
+  color: #1e293b;
   cursor: default;
   background: #fff;
   display: flex;
   flex-wrap: nowrap;
   align-items: flex-start;
-  gap: 8px;
+  gap: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.student-notif-item:last-child {
+  margin-bottom: 0;
 }
 .student-notif-item-empty {
   justify-content: center;
   text-align: center;
   cursor: default;
+  box-shadow: none;
 }
 .student-notif-item-main {
   flex: 1;
   min-width: 0;
 }
+.student-notif-item-msg {
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: #1e293b;
+  font-weight: 500;
+}
 .student-notif-item-actions {
   display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 8px;
   flex-shrink: 0;
-  align-self: flex-start;
+  align-self: stretch;
 }
 .student-notif-act {
-  width: auto;
-  min-width: 3.35rem;
-  height: auto;
-  min-height: 30px;
-  padding: 5px 10px;
-  border: 1px solid #d8e2f2;
-  border-radius: 8px;
-  background: #f5f8ff;
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  min-height: 38px;
+  padding: 0;
+  border: 1px solid #cbd5e9;
+  border-radius: 10px;
+  background: #e8f1fc;
   color: #1a5fac;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.72rem;
-  font-weight: 700;
-  line-height: 1.2;
-  white-space: nowrap;
+  font-size: 1.05rem;
+  line-height: 1;
+  flex-shrink: 0;
 }
-.student-notif-act-label {
-  pointer-events: none;
+.student-notif-act i {
+  display: block;
+  line-height: 1;
 }
-.student-notif-act:hover {
-  background: #e8f0fb;
-  border-color: #c5d4ec;
+.student-notif-act-read {
+  background: #e8f1fc;
+  border-color: #c5d8ef;
+  color: #1a5fac;
+}
+.student-notif-act-read:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
 }
 .student-notif-act-danger {
-  color: #b42318;
-  background: #fef3f2;
-  border-color: #fecdca;
+  color: #c81e1e;
+  background: #fef2f2;
+  border-color: #fecaca;
 }
 .student-notif-act-danger:hover {
-  background: #fde8e6;
-  border-color: #f7b4af;
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #b91c1c;
 }
-.student-notif-item.unread { border-left: 3px solid #1a5fac; background: #f8fbff; }
-.student-notif-item-time { color: #7a8799; font-size: 0.73rem; margin-top: 3px; }
+.student-notif-item.unread { border-left: 3px solid #1a5fac; background: #fff; }
+.student-notif-item-time { color: #64748b; font-size: 0.76rem; margin-top: 6px; font-weight: 400; }
 .topbar-badge {
   background: var(--gc-blue); color: #fff;
   border-radius: 20px; padding: 3px 12px;
