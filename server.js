@@ -11,7 +11,6 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "";
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free";
 
 app.use(express.json({ limit: "1mb" }));
-app.use(express.static(path.join(__dirname)));
 
 function isAiConfigured() {
   if (AI_PROVIDER === "openrouter") return Boolean(OPENROUTER_API_KEY);
@@ -80,6 +79,8 @@ async function callOpenRouter(message, systemInstruction) {
   return String(data?.choices?.[0]?.message?.content || "").trim();
 }
 
+// --- API routes MUST be registered before express.static so POST /api/ai is never swallowed ---
+
 app.get("/api/health", (_req, res) => {
   res.json({
     ok: true,
@@ -87,6 +88,13 @@ app.get("/api/health", (_req, res) => {
     aiConfigured: isAiConfigured(),
     model: AI_PROVIDER === "openrouter" ? OPENROUTER_MODEL : GEMINI_MODEL
   });
+});
+
+app.options("/api/ai", (_req, res) => {
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept");
+  res.setHeader("Access-Control-Max-Age", "86400");
+  return res.sendStatus(204);
 });
 
 app.post("/api/ai", async (req, res) => {
@@ -116,6 +124,8 @@ app.post("/api/ai", async (req, res) => {
       .json({ error: error.message || "AI proxy error." });
   }
 });
+
+app.use(express.static(path.join(__dirname)));
 
 app.listen(PORT, () => {
   console.log(`GCLF server running at http://localhost:${PORT}`);

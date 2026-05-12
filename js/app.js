@@ -1142,7 +1142,7 @@ async function launchAdminApp() {
   initSidebarToggle();
   setTimeout(() => {
     const active = document.querySelector("#adminApp .page-section.active");
-    if (active?.id === "a-overview") refreshAdminAiInsights();
+    if (active?.id === "a-overview") scheduleAdminAiInsightsRefresh();
   }, 160);
 }
 
@@ -1280,7 +1280,7 @@ function adminNav(page, el) {
     renderAdminOverviewLists();
     renderAdminAnalyticsPanel();
     renderAdminAuditLogs();
-    refreshAdminAiInsights();
+    scheduleAdminAiInsightsRefresh();
   }
   if (page === "manageItems") renderAdminItems();
   if (page === "manageClaims") renderAdminClaims();
@@ -4180,7 +4180,8 @@ Be professional but friendly.`;
     const response = await fetch("/api/ai", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        Accept: "application/json"
       },
       body: JSON.stringify({
         message: userMessage,
@@ -4188,13 +4189,34 @@ Be professional but friendly.`;
       })
     });
 
-    const data = await response.json();
+    const raw = await response.text();
+    let data = {};
+    if (raw && raw.trim().startsWith("{")) {
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        /* fall through */
+      }
+    }
+
     if (!response.ok) {
-      throw new Error(data?.error || `AI request failed (${response.status})`);
+      const fromJson = data?.error ? String(data.error) : "";
+      const isHtml = raw.trim().startsWith("<");
+      const hint =
+        response.status === 405 || isHtml
+          ? "This site is not serving POST /api/ai (open the app from your Render Web Service URL with npm start, not static/GitHub Pages only)."
+          : fromJson || `AI request failed (HTTP ${response.status}).`;
+      throw new Error(hint);
+    }
+
+    if (!Object.keys(data).length && raw && !raw.trim().startsWith("{")) {
+      throw new Error(
+        "Server returned non-JSON. Use the Node host (Render Web Service) so /api/ai is available."
+      );
     }
 
     const text = String(data?.text || "").trim();
-    if (!text) throw new Error("Model returned an empty response.");
+    if (!text) throw new Error(data?.error || "Model returned an empty response.");
     return text;
   } catch (error) {
     console.error("AI API error:", error);
@@ -4207,6 +4229,15 @@ let _adminAiInsightsInFlight = false;
 let _adminAiInsightsCacheAt = 0;
 let _adminAiInsightsCacheKey = "";
 let _adminAiInsightsCacheHtml = "";
+let _adminAiInsightsDebounceT = null;
+
+function scheduleAdminAiInsightsRefresh() {
+  if (_adminAiInsightsDebounceT) clearTimeout(_adminAiInsightsDebounceT);
+  _adminAiInsightsDebounceT = setTimeout(() => {
+    _adminAiInsightsDebounceT = null;
+    void refreshAdminAiInsights({ force: false });
+  }, 450);
+}
 
 function adminAiInsightsCacheKeyFromData() {
   const a = getAnalyticsData();
@@ -4228,6 +4259,10 @@ function adminAiInsightsCacheKeyFromData() {
 
 async function refreshAdminAiInsights(opts = {}) {
   const force = Boolean(opts && opts.force);
+  if (force && _adminAiInsightsDebounceT) {
+    clearTimeout(_adminAiInsightsDebounceT);
+    _adminAiInsightsDebounceT = null;
+  }
   const body = document.getElementById("adminAiInsightsBody");
   const row = document.getElementById("adminAiInsightsRow");
   if (!body) return;
@@ -4247,7 +4282,7 @@ async function refreshAdminAiInsights(opts = {}) {
     body.innerHTML = _adminAiInsightsCacheHtml;
     return;
   }
-  if (_adminAiInsightsInFlight && !force) return;
+  if (_adminAiInsightsInFlight) return;
   _adminAiInsightsInFlight = true;
 
   body.innerHTML = `<div class="admin-ai-insights-loading"><span class="ai-dot-loader" aria-label="Generating"><span>.</span><span>.</span><span>.</span></span><span> Generating summary…</span></div>`;

@@ -12,7 +12,7 @@ Users can open the website normally. API keys stay on the server.
 4. Set environment variables in Render (see provider options below).
 5. Deploy.
 
-After deploy, open your Render URL. No local setup needed for end users.
+After deploy, open your **Render Web Service** URL (the service that runs `npm start` / `node server.js`). Static-only hosts (e.g. GitHub Pages) cannot run `POST /api/ai` and the AI summary will show a configuration error.
 
 ## AI Provider Settings
 
