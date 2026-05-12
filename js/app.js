@@ -3129,15 +3129,15 @@ function renderStudentNotificationBell() {
       const isRead = n._synthetic
         ? isSyntheticNotificationRead(n.id)
         : Array.isArray(n.readBy) && n.readBy.includes(currentUser.email);
-      const nid = attrEsc(String(n.id));
+      const nid = encodeURIComponent(String(n.id));
       return `<div class="student-notif-item ${isRead ? "" : "unread"}" data-notif-id="${nid}">
         <div class="student-notif-item-main">
           <div>${htmlEsc(n.message)}</div>
           <div class="student-notif-item-time">${htmlEsc(n.createdAt || "—")}</div>
         </div>
         <div class="student-notif-item-actions">
-          <button type="button" class="student-notif-act" title="Mark as read" aria-label="Mark as read" data-notif-id="${nid}" onclick="notificationMarkReadClick(event)"><i class="bi bi-check2"></i></button>
-          <button type="button" class="student-notif-act student-notif-act-danger" title="Remove" aria-label="Remove" data-notif-id="${nid}" onclick="notificationDeleteClick(event)"><i class="bi bi-trash3"></i></button>
+          <button type="button" class="student-notif-act" title="Mark as read" data-notif-id="${nid}" onclick="notificationMarkReadClick(event)"><span class="student-notif-act-label">Read</span></button>
+          <button type="button" class="student-notif-act student-notif-act-danger" title="Remove from list" data-notif-id="${nid}" onclick="notificationDeleteClick(event)"><span class="student-notif-act-label">Remove</span></button>
         </div>
       </div>`;
     })
@@ -3147,14 +3147,16 @@ function renderStudentNotificationBell() {
 function notificationMarkReadClick(ev) {
   ev.preventDefault();
   ev.stopPropagation();
-  const id = ev.currentTarget.getAttribute("data-notif-id");
+  const raw = ev.currentTarget.getAttribute("data-notif-id");
+  const id = raw ? decodeURIComponent(raw) : "";
   if (id) markStudentNotificationRead(id);
 }
 
 function notificationDeleteClick(ev) {
   ev.preventDefault();
   ev.stopPropagation();
-  const id = ev.currentTarget.getAttribute("data-notif-id");
+  const raw = ev.currentTarget.getAttribute("data-notif-id");
+  const id = raw ? decodeURIComponent(raw) : "";
   if (id) deleteStudentNotification(id);
 }
 
@@ -3305,15 +3307,15 @@ function renderNotificationsList() {
       const isRead = n._synthetic
         ? isSyntheticNotificationRead(n.id)
         : Array.isArray(n.readBy) && n.readBy.includes(currentUser.email);
-      const nid = attrEsc(String(n.id));
+      const nid = encodeURIComponent(String(n.id));
       return `<div class="notif-feed-row ${isRead ? "" : "unread"}" data-notif-id="${nid}">
         <div class="notif-feed-main">
           <div class="notif-feed-msg">${htmlEsc(n.message)}</div>
           <div class="notif-feed-time">${htmlEsc(n.createdAt || "—")}</div>
         </div>
         <div class="student-notif-item-actions">
-          <button type="button" class="student-notif-act" title="Mark as read" aria-label="Mark as read" data-notif-id="${nid}" onclick="notificationMarkReadClick(event)"><i class="bi bi-check2"></i></button>
-          <button type="button" class="student-notif-act student-notif-act-danger" title="Remove" aria-label="Remove" data-notif-id="${nid}" onclick="notificationDeleteClick(event)"><i class="bi bi-trash3"></i></button>
+          <button type="button" class="student-notif-act" title="Mark as read" data-notif-id="${nid}" onclick="notificationMarkReadClick(event)"><span class="student-notif-act-label">Read</span></button>
+          <button type="button" class="student-notif-act student-notif-act-danger" title="Remove from list" data-notif-id="${nid}" onclick="notificationDeleteClick(event)"><span class="student-notif-act-label">Remove</span></button>
         </div>
       </div>`;
     })
